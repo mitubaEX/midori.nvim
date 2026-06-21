@@ -48,6 +48,47 @@ check(h and h.level == 1 and h.text == "Title", "heading: level 1, text 'Title'"
 local code = find("code")
 check(code and code.lang == "lua", "code: fence language is 'lua'")
 check(code and #code.lines == 1 and code.lines[1] == 'print("hi")', "code: body line captured")
+
+-- ---- parser: fence nesting (CommonMark: closer must match opener char & length) ----
+do
+	-- 4-backtick opener with an inner 3-backtick line — inner line is body, not closer.
+	local nested = parser.parse({
+		"````markdown",
+		"```mermaid",
+		"graph TD",
+		"```",
+		"````",
+		"after",
+	})
+	local first_code, after_para
+	for _, b in ipairs(nested) do
+		if not first_code and b.kind == "code" then
+			first_code = b
+		elseif first_code and b.kind == "para" then
+			after_para = after_para or b
+		end
+	end
+	check(first_code and first_code.lang == "markdown", "code: 4-backtick fence keeps 'markdown' lang")
+	check(
+		first_code and #first_code.lines == 3 and first_code.lines[3] == "```",
+		"code: 4-backtick fence captures inner 3-backtick lines as body"
+	)
+	check(after_para ~= nil, "code: 4-backtick fence closes on matching ```` and yields trailing paragraph")
+end
+
+do
+	-- Backtick opener must NOT be closed by a tilde line (and vice versa).
+	local mixed = parser.parse({ "```", "body", "~~~", "still body", "```" })
+	local c
+	for _, b in ipairs(mixed) do
+		if b.kind == "code" then
+			c = b
+			break
+		end
+	end
+	check(c and #c.lines == 3, "code: backtick fence not closed by ~~~ line")
+end
+
 check(find("rule") ~= nil, "rule: horizontal rule parsed")
 check(find("quote") ~= nil, "quote: blockquote parsed")
 local li = find("list_item")

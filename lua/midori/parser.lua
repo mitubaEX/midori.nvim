@@ -79,8 +79,10 @@ local function fence(line)
 	return f, lang
 end
 
-local function is_close_fence(line)
-	return line:match("^%s*```+%s*$") ~= nil or line:match("^%s*~~~+%s*$") ~= nil
+local function is_close_fence(line, opener)
+	local ch = opener:sub(1, 1)
+	local run = line:match("^%s*(" .. ch .. "+)%s*$")
+	return run ~= nil and #run >= #opener
 end
 
 -- "| a | b | c |" → {"a","b","c"}; strips edge pipes and surrounding spaces.
@@ -185,7 +187,7 @@ function M.parse(lines)
 		if f then
 			local body = {}
 			i = i + 1
-			while i <= n and not is_close_fence(lines[i]) do
+			while i <= n and not is_close_fence(lines[i], f) do
 				body[#body + 1] = lines[i]
 				i = i + 1
 			end
