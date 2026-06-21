@@ -8,8 +8,10 @@ M.defaults = {
 	width = 0.6,
 	height = 0.85,
 	heading = {
-		-- prefix icon per heading level (1..6)
+		-- prefix icon per heading level (1..6); empty string = no prefix
 		icons = { "▌", "▍", "▎", "▏", "┃", "│" },
+		-- horizontal-rule char per heading level. Set "" to disable for a level.
+		rules = { "━", "─", "", "", "", "" },
 	},
 	code = {
 		border = true,

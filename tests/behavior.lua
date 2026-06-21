@@ -119,6 +119,25 @@ for _, m in ipairs(out.marks) do
 	end
 end
 check(has_h1, "render: H1 line highlight emitted")
+local has_h1_rule = false
+local has_h2_rule = false
+for _, m in ipairs(out.marks) do
+	if m.line_hl == "MidoriH1Rule" then
+		has_h1_rule = true
+	elseif m.line_hl == "MidoriH2Rule" then
+		has_h2_rule = true
+	end
+end
+check(has_h1_rule, "render: H1 underline (━) emitted")
+-- add an H2 sample to test rule emission for H2 too
+local h2_blocks = parser.parse({ "## Section", "body" })
+local h2_out = render.render(h2_blocks)
+for _, m in ipairs(h2_out.marks) do
+	if m.line_hl == "MidoriH2Rule" then
+		has_h2_rule = true
+	end
+end
+check(has_h2_rule, "render: H2 underline (─) emitted")
 check(joined:find("╭") ~= nil and joined:find("╰") ~= nil, "render: code block frame drawn")
 check(joined:find("lua") ~= nil, "render: code language label present")
 

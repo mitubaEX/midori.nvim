@@ -190,11 +190,21 @@ end
 
 local function emit_heading(lines, marks, links, block, opts)
 	local icon = opts.heading.icons[block.level] or ""
-	local prefix = icon .. " "
+	local prefix = icon == "" and "" or (icon .. " ")
 	local idx = #lines
 	local visible = process_inline(block.text, idx, #prefix, marks, links)
 	lines[#lines + 1] = prefix .. visible
 	marks[#marks + 1] = { line = idx, line_hl = "MidoriH" .. block.level }
+
+	-- H1 / H2 get an underline rule. H3..H6 are color-only.
+	local rule_width = math.max(#prefix + #visible, opts.rule_width or 60)
+	local rule_chars = opts.heading.rules or { "━", "─" }
+	local rule_char = rule_chars[block.level]
+	if rule_char and rule_char ~= "" then
+		local ridx = #lines
+		lines[#lines + 1] = string.rep(rule_char, rule_width)
+		marks[#marks + 1] = { line = ridx, line_hl = "MidoriH" .. block.level .. "Rule" }
+	end
 end
 
 local function emit_para(lines, marks, links, block)
