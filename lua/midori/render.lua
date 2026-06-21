@@ -10,6 +10,7 @@
 --   }
 local config = require("midori.config")
 local syntax = require("midori.syntax")
+local mermaid = require("midori.mermaid")
 
 local M = {}
 
@@ -149,6 +150,61 @@ local function emit_rule(lines, marks, opts)
 	marks[#marks + 1] = { line = idx, line_hl = "MidoriRule" }
 end
 
+local function emit_framed_block(lines, marks, label, body_lines)
+	local longest = #label + 4
+	for _, l in ipairs(body_lines) do
+		if #l > longest then
+			longest = #l
+		end
+	end
+	local inner = math.max(longest, 20)
+	-- top border with embedded label
+	local llabel = label ~= "" and (" " .. label .. " ") or ""
+	local top = "╭─" .. llabel .. string.rep("─", inner - #llabel - 1) .. "╮"
+	local idx = #lines
+	lines[#lines + 1] = top
+	marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBorder" }
+	if llabel ~= "" then
+		marks[#marks + 1] = {
+			line = idx,
+			col_start = 2,
+			col_end = 2 + #llabel,
+			hl_group = "MidoriCodeLang",
+		}
+	end
+	for _, bl in ipairs(body_lines) do
+		local pad = inner - #bl
+		if pad < 0 then
+			pad = 0
+		end
+		local li = #lines
+		lines[#lines + 1] = "│ " .. bl .. string.rep(" ", pad) .. " │"
+		marks[#marks + 1] = { line = li, line_hl = "MidoriCodeBlock" }
+	end
+	local bi = #lines
+	lines[#lines + 1] = "╰" .. string.rep("─", inner + 2) .. "╯"
+	marks[#marks + 1] = { line = bi, line_hl = "MidoriCodeBorder" }
+end
+
+local function emit_mermaid(lines, marks, block, opts)
+	local enabled = (opts.mermaid or {}).enabled
+	if enabled == false then
+		return false
+	end
+	local result = mermaid.render(block.lines)
+	if result.ok then
+		emit_framed_block(lines, marks, "mermaid", result.lines)
+		return true
+	end
+	-- placeholder: show a marker + the original source so it's still readable
+	local body = { "[mermaid: not installed]", "" }
+	for _, l in ipairs(block.lines) do
+		body[#body + 1] = l
+	end
+	emit_framed_block(lines, marks, "mermaid", body)
+	return true
+end
+
 local function emit_code(lines, marks, block, opts)
 	local lang = block.lang or ""
 	local body = block.lines or {}
@@ -255,7 +311,11 @@ function M.render(blocks)
 		elseif block.kind == "rule" then
 			emit_rule(lines, marks, opts)
 		elseif block.kind == "code" then
-			emit_code(lines, marks, block, opts)
+			if block.lang == "mermaid" and emit_mermaid(lines, marks, block, opts) then
+				-- handled
+			else
+				emit_code(lines, marks, block, opts)
+			end
 		elseif block.kind == "blank" then
 			lines[#lines + 1] = ""
 		end

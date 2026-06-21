@@ -81,6 +81,24 @@ check(syntax.resolve_lang("ts") == "typescript", "syntax: alias 'ts' resolves to
 check(syntax.resolve_lang("sh") == "bash", "syntax: alias 'sh' resolves to 'bash'")
 check(syntax.resolve_lang("lua") == "lua", "syntax: unknown alias falls through")
 
+-- ---- mermaid ----
+local mermaid = require("midori.mermaid")
+local available = mermaid.is_available()
+check(type(available) == "boolean", "mermaid: is_available() returns bool")
+local mblocks = parser.parse({ "```mermaid", "graph TD", "A-->B", "```" })
+local mout = render.render(mblocks)
+local mjoined = table.concat(mout.lines, "\n")
+if available then
+	check(mjoined:find("placeholder") == nil, "mermaid: when installed, no placeholder marker")
+else
+	check(
+		mjoined:find("%[mermaid: not installed%]") ~= nil,
+		"mermaid: placeholder marker shown when mermaid-ascii missing"
+	)
+	-- source is preserved inside the placeholder block so the user can still read it
+	check(mjoined:find("graph TD") ~= nil, "mermaid: original source preserved in placeholder")
+end
+
 -- ---- view / :MidoriView command ----
 vim.cmd("runtime plugin/midori.lua")
 vim.api.nvim_buf_set_lines(0, 0, -1, false, sample)
