@@ -23,4 +23,12 @@ function M.toggle()
 	view.toggle()
 end
 
+function M.toc()
+	view.open_toc()
+end
+
+function M.refresh()
+	view.refresh()
+end
+
 return M

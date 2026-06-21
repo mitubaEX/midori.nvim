@@ -18,6 +18,17 @@ M.links = {
 	MidoriQuote = "Comment",
 	MidoriQuoteBar = "Special",
 	MidoriRule = "NonText",
+	MidoriTableBorder = "Comment",
+	MidoriTableHeader = "Title",
+	MidoriTableCell = "Normal",
+	MidoriTaskOpen = "Special",
+	MidoriTaskDone = "Comment",
+	MidoriTaskDoneText = "Comment",
+	MidoriLink = "Underlined",
+	MidoriLinkIcon = "Special",
+	MidoriFrontmatter = "Comment",
+	MidoriFrontmatterKey = "Identifier",
+	MidoriTocHeading = "Special",
 }
 
 function M.setup()

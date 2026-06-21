@@ -21,6 +21,9 @@ M.defaults = {
 		-- override the binary; nil = use whatever is on $PATH ("mermaid-ascii")
 		bin = nil,
 	},
+	watch = {
+		enabled = true,
+	},
 	-- width of the horizontal rule rendering
 	rule_width = 60,
 }
