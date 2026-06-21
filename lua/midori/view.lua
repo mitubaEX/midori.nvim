@@ -55,21 +55,51 @@ local function apply_marks(buf, marks)
 	end
 end
 
+local function render_into(buf, source_buf)
+	local src_lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
+	local blocks = parser.parse(src_lines)
+	local out = render.render(blocks)
+	vim.bo[buf].modifiable = true
+	vim.api.nvim_buf_clear_namespace(buf, NS, 0, -1)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, out.lines)
+	apply_marks(buf, out.marks)
+	vim.bo[buf].modifiable = false
+	state.links = out.links or {}
+end
+
+local AUGROUP = "midori_watch"
+
+local function setup_watch(reader_buf, source_buf)
+	local enabled = (config.options.watch or {}).enabled
+	if enabled == false then
+		return
+	end
+	local group = vim.api.nvim_create_augroup(AUGROUP, { clear = true })
+	vim.api.nvim_create_autocmd("BufWritePost", {
+		group = group,
+		buffer = source_buf,
+		callback = function()
+			if reader_buf and vim.api.nvim_buf_is_valid(reader_buf) then
+				render_into(reader_buf, source_buf)
+			end
+		end,
+	})
+end
+
+local function teardown_watch()
+	pcall(vim.api.nvim_del_augroup_by_name, AUGROUP)
+end
+
 function M.open(source_buf)
 	highlights.setup()
 	source_buf = source_buf or vim.api.nvim_get_current_buf()
-	local lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
-	local blocks = parser.parse(lines)
-	local out = render.render(blocks)
 
 	if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
 		M.close()
 	end
 
 	local buf, win = open_window(config.options)
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, out.lines)
-	apply_marks(buf, out.marks)
-	state.links = out.links or {}
+	render_into(buf, source_buf)
 
 	vim.bo[buf].filetype = "midori"
 	vim.bo[buf].buftype = "nofile"
@@ -105,9 +135,21 @@ function M.open(source_buf)
 	state.buf = buf
 	state.win = win
 	state.source = source_buf
+	setup_watch(buf, source_buf)
+end
+
+function M.refresh()
+	if not state.buf or not vim.api.nvim_buf_is_valid(state.buf) then
+		return
+	end
+	if not state.source or not vim.api.nvim_buf_is_valid(state.source) then
+		return
+	end
+	render_into(state.buf, state.source)
 end
 
 function M.close()
+	teardown_watch()
 	if state.win and vim.api.nvim_win_is_valid(state.win) then
 		pcall(vim.api.nvim_win_close, state.win, true)
 	end

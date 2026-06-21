@@ -224,6 +224,21 @@ check(view.url_at_cursor() == "https://example.com/d", "view: gx (url_at_cursor)
 vim.api.nvim_win_set_cursor(0, { 1, 28 })
 check(view.url_at_cursor() == nil, "view: url_at_cursor returns nil outside any link")
 
+-- ---- view: refresh re-renders from current source ----
+require("midori").close()
+local src_buf = vim.api.nvim_create_buf(false, false)
+vim.api.nvim_buf_set_lines(src_buf, 0, -1, false, { "# First" })
+vim.api.nvim_set_current_buf(src_buf)
+vim.cmd("MidoriView")
+local reader_before = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+check(reader_before:find("First") ~= nil, "view: initial render shows 'First'")
+-- mutate source then refresh
+vim.api.nvim_buf_set_lines(src_buf, 0, -1, false, { "# Second" })
+view.refresh()
+local reader_after = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+check(reader_after:find("Second") ~= nil, "view: refresh() re-renders updated source")
+check(reader_after:find("First") == nil, "view: refresh() clears stale content")
+
 -- ---- summary ----
 if #failures > 0 then
 	io.stderr:write(("\n%d test(s) FAILED\n"):format(#failures))
