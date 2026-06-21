@@ -442,7 +442,10 @@ local function emit_code(lines, marks, block, opts)
 end
 
 local function pad_cell(text, width, align)
-	local space = width - #text
+	-- width is in DISPLAY columns; `#text` is bytes and overcounts multibyte
+	-- (Japanese, en dash, box-drawing) so multibyte cells would be
+	-- under-padded and the right '│' would drift left.
+	local space = width - vim.fn.strdisplaywidth(text)
 	if space <= 0 then
 		return text
 	end
@@ -465,15 +468,20 @@ local function emit_table(lines, marks, block)
 		return
 	end
 
+	-- Column widths are in DISPLAY columns, not bytes — same multibyte
+	-- alignment fix as emit_code / emit_framed_block (see PR #12). Byte length
+	-- of e.g. `–` is 3 but its display width is 1, so byte-based widths leave
+	-- ASCII rows over-padded relative to multibyte rows in the same column.
+	local dw = vim.fn.strdisplaywidth
 	local widths = {}
 	for c = 1, ncols do
-		widths[c] = #(headers[c] or "")
+		widths[c] = dw(headers[c] or "")
 	end
 	for _, row in ipairs(rows) do
 		for c = 1, ncols do
-			local cell = row[c] or ""
-			if #cell > widths[c] then
-				widths[c] = #cell
+			local w = dw(row[c] or "")
+			if w > widths[c] then
+				widths[c] = w
 			end
 		end
 	end

@@ -292,6 +292,43 @@ do
 	)
 end
 
+-- ---- regression: table right border aligned for multibyte cells ----
+-- Same byte-vs-display-width bug class as the code block. Cells containing
+-- en-dash / Japanese / fullwidth chars overshoot in bytes, so byte-based
+-- widths[c] + byte-based pad_cell leaves the right '│' drifting left on
+-- multibyte rows. Every rendered table line MUST share the same display width.
+do
+	local tb = render.render(parser.parse({
+		"| Group | Default |",
+		"|-------|---------|",
+		"| `H1`–`H2` | `Title` |",
+		"| `Bold`    | `(bold)` |",
+		"| 日本語見出し | `Normal` |",
+	}))
+	local table_lines = {}
+	for _, l in ipairs(tb.lines) do
+		if l:find("[┌├└│]") then
+			table_lines[#table_lines + 1] = l
+		end
+	end
+	local w0 = vim.fn.strdisplaywidth(table_lines[1])
+	local all_equal, bad = true, nil
+	for _, l in ipairs(table_lines) do
+		if vim.fn.strdisplaywidth(l) ~= w0 then
+			all_equal = false
+			bad = l
+			break
+		end
+	end
+	check(
+		all_equal,
+		("render: table frame lines share display width (got %s ≠ %d)"):format(
+			bad and tostring(vim.fn.strdisplaywidth(bad)) or "?",
+			w0
+		)
+	)
+end
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw
