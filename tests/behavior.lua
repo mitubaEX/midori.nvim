@@ -353,6 +353,51 @@ do
 		end
 	end
 	check(has_color, "render: bash code block emits col-range syntax marks")
+
+	-- regression: syntax marks must align with the actual token bytes inside
+	-- the bordered body line. The border prefix is "│ " which is 4 bytes in
+	-- UTF-8 (│ = U+2502 = 3 bytes), not 2 — earlier code mis-offset marks by
+	-- 2 bytes and painted the trailing byte of │ + bled colors across tokens.
+	local body_line
+	for _, l in ipairs(rout.lines) do
+		if l:find("echo") then
+			body_line = l
+			break
+		end
+	end
+	check(body_line ~= nil, "render: bordered body line containing 'echo' exists")
+	local body_idx
+	for i, l in ipairs(rout.lines) do
+		if l == body_line then
+			body_idx = i - 1
+			break
+		end
+	end
+	local first
+	for _, m in ipairs(rout.marks) do
+		if
+			m.line == body_idx
+			and m.col_start
+			and m.hl_group
+			and m.hl_group ~= "MidoriCodeLang"
+			and m.hl_group ~= "MidoriCodeLineNr"
+			and m.hl_group ~= "MidoriCodeBlock"
+		then
+			first = m
+			break
+		end
+	end
+	check(first ~= nil, "render: at least one syntax mark on the body line")
+	if first then
+		local seg = body_line:sub(first.col_start + 1, first.col_end)
+		-- The very first byte of the highlighted slice must NOT be a border
+		-- byte (│ = 0xE2 0x94 0x82). A trailing 0x82 here means we mis-aligned
+		-- the prefix length and started inside the box-drawing char.
+		local first_byte = string.byte(seg, 1)
+		check(first_byte ~= 0x82, "render: first syntax mark doesn't start inside the │ border bytes")
+		-- And the slice should be ASCII (the bash token), not contain box chars.
+		check(not seg:find("│"), "render: first syntax mark doesn't span the │ border")
+	end
 end
 
 -- ---- mermaid ----
