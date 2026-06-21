@@ -119,6 +119,7 @@ for _, m in ipairs(out.marks) do
 	end
 end
 check(has_h1, "render: H1 line highlight emitted")
+check(joined:find("^▌") == nil, "render: default heading uses no icon prefix")
 local has_h1_rule = false
 local has_h2_rule = false
 for _, m in ipairs(out.marks) do
