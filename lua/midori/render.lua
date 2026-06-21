@@ -474,11 +474,59 @@ local function emit_table(lines, marks, block)
 	marks[#marks + 1] = { line = bot_idx, line_hl = "MidoriTableBorder" }
 end
 
+local FRONTMATTER_KEYS = { "title", "date", "tags", "author" }
+
+local function emit_frontmatter(lines, marks, block)
+	local fields = block.fields or {}
+	local rendered = {}
+	for _, key in ipairs(FRONTMATTER_KEYS) do
+		local v = fields[key]
+		if v and v ~= "" then
+			rendered[#rendered + 1] = { key = key, value = v }
+		end
+	end
+	if #rendered == 0 then
+		return
+	end
+	local longest = 0
+	for _, r in ipairs(rendered) do
+		local len = #r.key + 2 + #r.value
+		if len > longest then
+			longest = len
+		end
+	end
+	local inner = math.max(longest, 24)
+	local top_idx = #lines
+	lines[#lines + 1] = "╭" .. string.rep("─", inner + 2) .. "╮"
+	marks[#marks + 1] = { line = top_idx, line_hl = "MidoriFrontmatter" }
+	for _, r in ipairs(rendered) do
+		local body = r.key .. ": " .. r.value
+		local pad = inner - #body
+		if pad < 0 then
+			pad = 0
+		end
+		local idx = #lines
+		lines[#lines + 1] = "│ " .. body .. string.rep(" ", pad) .. " │"
+		marks[#marks + 1] = { line = idx, line_hl = "MidoriFrontmatter" }
+		marks[#marks + 1] = {
+			line = idx,
+			col_start = 2,
+			col_end = 2 + #r.key,
+			hl_group = "MidoriFrontmatterKey",
+		}
+	end
+	local bot_idx = #lines
+	lines[#lines + 1] = "╰" .. string.rep("─", inner + 2) .. "╯"
+	marks[#marks + 1] = { line = bot_idx, line_hl = "MidoriFrontmatter" }
+end
+
 function M.render(blocks)
 	local opts = config.options
 	local lines, marks, links = {}, {}, {}
 	for _, block in ipairs(blocks) do
-		if block.kind == "heading" then
+		if block.kind == "frontmatter" then
+			emit_frontmatter(lines, marks, block)
+		elseif block.kind == "heading" then
 			emit_heading(lines, marks, links, block, opts)
 		elseif block.kind == "para" then
 			emit_para(lines, marks, links, block)

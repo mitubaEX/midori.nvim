@@ -161,6 +161,19 @@ check(ijoined:find("image:") ~= nil, "render: image becomes [image: …]")
 check(ijoined:find("logo") ~= nil, "render: image alt text preserved")
 check(ijoined:find("!%[") == nil, "render: image '![' syntax stripped")
 
+-- ---- render: frontmatter ----
+local fm_out = render.render(fm_blocks)
+local fm_joined = table.concat(fm_out.lines, "\n")
+check(fm_joined:find("My Doc") ~= nil, "render: frontmatter title shown in card")
+check(fm_joined:find("title") ~= nil, "render: frontmatter shows the 'title' key label")
+local has_fm_hl = false
+for _, m in ipairs(fm_out.marks) do
+	if m.line_hl == "MidoriFrontmatter" then
+		has_fm_hl = true
+	end
+end
+check(has_fm_hl, "render: frontmatter card line_hl emitted")
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw
