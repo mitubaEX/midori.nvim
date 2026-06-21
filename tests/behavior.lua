@@ -53,6 +53,58 @@ check(find("quote") ~= nil, "quote: blockquote parsed")
 local li = find("list_item")
 check(li and li.text == "item one" and li.ordered == false, "list: unordered item parsed")
 
+-- ---- parser: tables ----
+local table_blocks = parser.parse({
+	"| Name | Lang |",
+	"|------|:----:|",
+	"| midori | Lua |",
+	"| leaf   | Rust |",
+})
+local tbl = nil
+for _, b in ipairs(table_blocks) do
+	if b.kind == "table" then
+		tbl = b
+		break
+	end
+end
+check(tbl ~= nil, "parser: table block detected")
+check(tbl and #tbl.headers == 2 and tbl.headers[1] == "Name", "parser: table headers parsed")
+check(tbl and #tbl.rows == 2 and tbl.rows[1][1] == "midori", "parser: table rows parsed")
+check(tbl and tbl.aligns and tbl.aligns[2] == "center", "parser: table align ':---:' = center")
+
+-- ---- parser: task checkbox ----
+local task_blocks = parser.parse({ "- [ ] todo one", "- [x] done one" })
+local opens, dones = 0, 0
+for _, b in ipairs(task_blocks) do
+	if b.kind == "list_item" and b.checkbox == "open" then
+		opens = opens + 1
+	elseif b.kind == "list_item" and b.checkbox == "done" then
+		dones = dones + 1
+	end
+end
+check(opens == 1 and dones == 1, "parser: task checkboxes (open/done)")
+
+-- ---- parser: frontmatter ----
+local fm_blocks = parser.parse({
+	"---",
+	"title: My Doc",
+	"date: 2026-06-21",
+	"---",
+	"# Body",
+})
+local fm = nil
+for _, b in ipairs(fm_blocks) do
+	if b.kind == "frontmatter" then
+		fm = b
+		break
+	end
+end
+check(fm ~= nil, "parser: frontmatter block captured")
+check(fm and fm.fields and fm.fields.title == "My Doc", "parser: frontmatter title field")
+-- frontmatter must consume the --- lines (no spurious rule before # Body)
+local first_after = fm_blocks[2] -- index 1 is frontmatter, 2 should be heading
+check(first_after and first_after.kind == "heading", "parser: frontmatter consumes both --- delimiters")
+
 -- ---- render ----
 local render = require("midori.render")
 local out = render.render(blocks)
