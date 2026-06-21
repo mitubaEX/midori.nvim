@@ -148,6 +148,9 @@ check(first_after and first_after.kind == "heading", "parser: frontmatter consum
 
 -- ---- render ----
 local render = require("midori.render")
+-- The shared `blocks` sample includes a fenced code block whose inner-gutter
+-- checks below assume line numbers are ON. Default is OFF, so opt in here.
+require("midori.config").setup({ code = { line_numbers = true } })
 local out = render.render(blocks)
 local joined = table.concat(out.lines, "\n")
 check(not joined:find("%*%*bold%*%*"), "render: bold markers '**' stripped")
@@ -305,6 +308,17 @@ do
 	else
 		print("  skip - syntax: namespaced groups (no lua parser available)")
 	end
+end
+
+-- ---- config: code.line_numbers default is OFF ----
+do
+	-- isolate from earlier tests that may have mutated the default config
+	require("midori.config").setup({})
+	local cb = parser.parse({ "```bash", "echo hi", "```" })
+	local cout = render.render(cb)
+	local cjoined = table.concat(cout.lines, "\n")
+	check(cjoined:find("1   echo") == nil, "config: code.line_numbers default OFF — no '1   ' gutter")
+	check(cjoined:find("echo hi") ~= nil, "config: body content still rendered when line numbers are off")
 end
 
 -- ---- syntax: vim-runtime fallback (bash etc. have no bundled TS parser) ----
