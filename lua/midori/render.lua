@@ -9,6 +9,7 @@
 --     line_hl   = "MidoriH1"    -- whole-line hl, when col_start nil
 --   }
 local config = require("midori.config")
+local syntax = require("midori.syntax")
 
 local M = {}
 
@@ -187,6 +188,7 @@ local function emit_code(lines, marks, block, opts)
 		end
 	end
 
+	local body_start_idx = #lines
 	for i, bl in ipairs(body) do
 		local prefix = ""
 		if opts.code.line_numbers then
@@ -212,6 +214,20 @@ local function emit_code(lines, marks, block, opts)
 				col_start = 2,
 				col_end = 2 + nr_width,
 				hl_group = "MidoriCodeLineNr",
+			}
+		end
+	end
+
+	-- treesitter syntax overlay (optional, silently skipped if parser missing)
+	if opts.code.syntax and lang ~= "" then
+		local body_prefix_len = (opts.code.border and 2 or 0) + (opts.code.line_numbers and (nr_width + 3) or 0)
+		local syntax_marks = syntax.highlights(lang, body)
+		for _, m in ipairs(syntax_marks) do
+			marks[#marks + 1] = {
+				line = body_start_idx + m.line,
+				col_start = m.col_start + body_prefix_len,
+				col_end = m.col_end + body_prefix_len,
+				hl_group = m.hl_group,
 			}
 		end
 	end

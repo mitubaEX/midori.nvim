@@ -14,6 +14,12 @@ M.defaults = {
 	code = {
 		border = true,
 		line_numbers = true,
+		syntax = true,
+	},
+	mermaid = {
+		enabled = true,
+		-- override the binary; nil = use whatever is on $PATH ("mermaid-ascii")
+		bin = nil,
 	},
 	-- width of the horizontal rule rendering
 	rule_width = 60,

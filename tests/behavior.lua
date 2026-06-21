@@ -70,6 +70,17 @@ check(has_h1, "render: H1 line highlight emitted")
 check(joined:find("╭") ~= nil and joined:find("╰") ~= nil, "render: code block frame drawn")
 check(joined:find("lua") ~= nil, "render: code language label present")
 
+-- ---- syntax (treesitter) ----
+local syntax = require("midori.syntax")
+-- module loads even without parsers; missing parser → returns empty list, no throw
+local ok, marks = pcall(syntax.highlights, "lua", { 'print("hi")' })
+check(ok, "syntax: highlights() does not throw when parser is missing")
+check(type(marks) == "table", "syntax: highlights() returns a table")
+-- alias resolution
+check(syntax.resolve_lang("ts") == "typescript", "syntax: alias 'ts' resolves to 'typescript'")
+check(syntax.resolve_lang("sh") == "bash", "syntax: alias 'sh' resolves to 'bash'")
+check(syntax.resolve_lang("lua") == "lua", "syntax: unknown alias falls through")
+
 -- ---- view / :MidoriView command ----
 vim.cmd("runtime plugin/midori.lua")
 vim.api.nvim_buf_set_lines(0, 0, -1, false, sample)
