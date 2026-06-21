@@ -411,7 +411,12 @@ local function emit_code(lines, marks, block, opts)
 	end
 
 	if opts.code.syntax and lang ~= "" then
-		local body_prefix_len = (opts.code.border and 2 or 0) + (opts.code.line_numbers and (nr_width + 3) or 0)
+		-- Byte-length of "│ " — │ (U+2502) is 3 bytes in UTF-8, not 1.
+		-- Using a literal 2 here mis-aligns every syntax mark by 2 bytes:
+		-- token colors bleed into the trailing │ bytes and shift one char
+		-- left, so each identifier appears split between two highlight groups.
+		local border_prefix = opts.code.border and #"│ " or 0
+		local body_prefix_len = border_prefix + (opts.code.line_numbers and (nr_width + 3) or 0)
 		local syntax_marks = syntax.highlights(lang, body)
 		for _, m in ipairs(syntax_marks) do
 			marks[#marks + 1] = {
