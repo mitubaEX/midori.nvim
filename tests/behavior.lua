@@ -316,6 +316,18 @@ local mout = render.render(mblocks)
 local mjoined = table.concat(mout.lines, "\n")
 if available then
 	check(mjoined:find("placeholder") == nil, "mermaid: when installed, no placeholder marker")
+	-- regression: every rendered frame line must have the same display width,
+	-- so the right border aligns with ╮/╯ even when the body contains
+	-- box-drawing chars (multi-byte UTF-8 wider in bytes than columns).
+	local widths_equal = true
+	local first_w = vim.fn.strdisplaywidth(mout.lines[1])
+	for _, l in ipairs(mout.lines) do
+		if vim.fn.strdisplaywidth(l) ~= first_w then
+			widths_equal = false
+			break
+		end
+	end
+	check(widths_equal, "mermaid: every frame line has equal display width (right border aligned)")
 else
 	check(
 		mjoined:find("%[mermaid: not installed%]") ~= nil,

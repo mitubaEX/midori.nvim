@@ -286,10 +286,15 @@ local function emit_rule(lines, marks, opts)
 end
 
 local function emit_framed_block(lines, marks, label, body_lines)
+	-- Width math is in DISPLAY columns, not bytes — mermaid output uses
+	-- box-drawing chars (3 bytes / 1 col in UTF-8) so #s overstates width
+	-- and the right border drifts left of ╮/╯.
+	local dw = vim.fn.strdisplaywidth
 	local longest = #label + 4
 	for _, l in ipairs(body_lines) do
-		if #l > longest then
-			longest = #l
+		local w = dw(l)
+		if w > longest then
+			longest = w
 		end
 	end
 	local inner = math.max(longest, 20)
@@ -307,7 +312,7 @@ local function emit_framed_block(lines, marks, label, body_lines)
 		}
 	end
 	for _, bl in ipairs(body_lines) do
-		local pad = inner - #bl
+		local pad = inner - dw(bl)
 		if pad < 0 then
 			pad = 0
 		end
