@@ -65,7 +65,10 @@ end
 local function render_into(buf, source_buf)
 	local src_lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
 	local blocks = parser.parse(src_lines)
-	local out = render.render(blocks)
+	local name = vim.api.nvim_buf_get_name(source_buf) or ""
+	local title = name ~= "" and vim.fn.fnamemodify(name, ":t:r") or ""
+	local meta = { title = title, ft = vim.bo[source_buf].filetype or "" }
+	local out = render.render(blocks, meta)
 	vim.bo[buf].modifiable = true
 	vim.api.nvim_buf_clear_namespace(buf, NS, 0, -1)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, out.lines)

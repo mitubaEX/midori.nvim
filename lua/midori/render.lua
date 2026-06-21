@@ -530,9 +530,47 @@ local function emit_frontmatter(lines, marks, block)
 	marks[#marks + 1] = { line = bot_idx, line_hl = "MidoriFrontmatter" }
 end
 
-function M.render(blocks)
+local function emit_doc_header(lines, marks, meta, opts)
+	local title = (meta and meta.title) or ""
+	if title == "" then
+		return
+	end
+	local ft = (meta and meta.ft) or ""
+	local width = math.max(opts.rule_width or 60, #title + #ft + 6)
+	local idx = #lines
+	local right = ft ~= "" and ("[" .. ft .. "]") or ""
+	local pad = width - #title - #right
+	if pad < 1 then
+		pad = 1
+	end
+	lines[#lines + 1] = title .. string.rep(" ", pad) .. right
+	marks[#marks + 1] = { line = idx, line_hl = "MidoriDocTitle" }
+	-- title col-range and ft col-range
+	if title ~= "" then
+		marks[#marks + 1] = {
+			line = idx,
+			col_start = 0,
+			col_end = #title,
+			hl_group = "MidoriH1",
+		}
+	end
+	if right ~= "" then
+		marks[#marks + 1] = {
+			line = idx,
+			col_start = #title + pad,
+			col_end = #title + pad + #right,
+			hl_group = "MidoriDocFt",
+		}
+	end
+	local ridx = #lines
+	lines[#lines + 1] = string.rep("━", width)
+	marks[#marks + 1] = { line = ridx, line_hl = "MidoriH1Rule" }
+end
+
+function M.render(blocks, meta)
 	local opts = config.options
 	local lines, marks, links, headings = {}, {}, {}, {}
+	emit_doc_header(lines, marks, meta, opts)
 	for _, block in ipairs(blocks) do
 		if block.kind == "frontmatter" then
 			emit_frontmatter(lines, marks, block)

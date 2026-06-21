@@ -197,6 +197,15 @@ for _, m in ipairs(fm_out.marks) do
 end
 check(has_fm_hl, "render: frontmatter card line_hl emitted")
 
+-- ---- render: document header ----
+local hb = render.render({ { kind = "para", text = "body" } }, { title = "foo", ft = "markdown" })
+local hb_joined = table.concat(hb.lines, "\n")
+check(hb_joined:find("foo") ~= nil, "render: doc header includes title 'foo'")
+check(hb_joined:find("markdown") ~= nil, "render: doc header includes filetype tag")
+-- unnamed (no title) skips the header entirely
+local hb_skip = render.render({ { kind = "para", text = "body" } }, { title = "", ft = "markdown" })
+check(hb_skip.lines[1] == "body", "render: doc header skipped when title is empty")
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw

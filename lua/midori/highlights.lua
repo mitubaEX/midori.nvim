@@ -31,6 +31,8 @@ M.links = {
 	MidoriFrontmatter = "Comment",
 	MidoriFrontmatterKey = "Identifier",
 	MidoriTocHeading = "Special",
+	MidoriDocTitle = "Title",
+	MidoriDocFt = "Special",
 }
 
 function M.setup()
