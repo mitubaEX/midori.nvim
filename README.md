@@ -2,25 +2,29 @@
 
 Reader-only markdown viewer for Neovim, inspired by [leaf](https://leaf.rivolink.mg).
 
+<p align="center">
+  <img src="docs/images/preview.png" alt="midori.nvim preview" width="780">
+</p>
+
 Open the current markdown buffer in a dedicated read-only window where headings,
-inline decorations and fenced code blocks are rendered "nicely" — no conceal hacks,
+inline decorations and fenced code blocks are rendered nicely — no conceal hacks,
 no rewriting of the source buffer.
 
 ## Features
 
 - Line-based parser, zero runtime dependencies
 - Decoration via extmarks (markers like `**bold**` and `` `code` `` are stripped from the visible text)
-- **Document header bar** — filename + `[ft]` tag at the top of the reader
-- Headings H1–H6 with per-level color, **H1 / H2 get a horizontal underline rule**
-- Lists, **task lists** (☐/☑), blockquotes, horizontal rules
-- **Inline links** rendered as `text ↗` (URLs hidden) and **images** as `[image: alt — path]`
-- **Tables** with box-drawing borders and per-column alignment
-- **YAML frontmatter** rendered as a title card at the top
+- Document header bar — filename + `[ft]` tag at the top of the reader
+- Headings H1–H6 with per-level color; H1 / H2 get a horizontal underline rule
+- Lists, task lists (☐/☑), blockquotes, horizontal rules
+- Inline links rendered as `text ↗` (URLs hidden) and images as `[image: alt — path]`
+- Tables with box-drawing borders and per-column alignment
+- YAML frontmatter rendered as a title card at the top
 - Fenced code blocks with frame, language label and line numbers
-- **Treesitter syntax highlighting** inside code blocks
-- **Mermaid graph rendering** via [`mermaid-ascii`](https://github.com/AlexanderGrooff/mermaid-ascii)
-- **TOC sidebar** (`:MidoriToc`) — heading list with jump-on-`<CR>`
-- **Watch mode** — re-renders the reader on `:w`
+- Treesitter syntax highlighting inside code blocks
+- Mermaid graph rendering via [`mermaid-ascii`](https://github.com/AlexanderGrooff/mermaid-ascii)
+- TOC sidebar (`:MidoriToc`) — heading list with jump-on-`<CR>`
+- Watch mode — re-renders the reader on `:w`
 - Reader window mode: `vsplit` (default) / `full` (new tabpage) / `float`
 - `q` to close the reader, `gx` to open the link under cursor
 
@@ -31,7 +35,9 @@ no rewriting of the source buffer.
   installed in your runtimepath (e.g. via `nvim-treesitter`)
 - For mermaid (optional): `mermaid-ascii` on `$PATH`
 
-## Install (lazy.nvim)
+## Install
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
@@ -47,6 +53,14 @@ Or as a local clone:
 ```lua
 { dir = "~/ghq/github.com/mitubaEX/midori.nvim", ft = "markdown", opts = {} }
 ```
+
+## Quick Start
+
+1. Install the plugin (see above) and restart Neovim.
+2. Open any `.md` file.
+3. Run `:MidoriView` to open the reader in a vertical split.
+4. (Optional) Run `:MidoriToc` to open the heading sidebar; press `<CR>` on a heading to jump.
+5. Press `q` inside the reader to close it.
 
 ## Usage
 
@@ -117,38 +131,38 @@ require("midori").setup({
 All groups are defined with `default = true` and linked to common groups so your
 colorscheme applies automatically. Override with `vim.api.nvim_set_hl(0, ...)`.
 
-| Group               | Default link |
-| ------------------- | ------------ |
-| `MidoriH1`–`MidoriH2` | `Title`    |
-| `MidoriH3`–`MidoriH4` | `Function` |
-| `MidoriH5`–`MidoriH6` | `Identifier` |
-| `MidoriBold`        | `(bold)`     |
-| `MidoriItalic`      | `(italic)`   |
-| `MidoriStrike`      | `(strikethrough)` |
-| `MidoriInlineCode`  | `String`     |
-| `MidoriCodeBlock`   | `CursorLine` |
-| `MidoriCodeBorder`  | `Comment`    |
-| `MidoriCodeLang`    | `Special`    |
-| `MidoriCodeLineNr`  | `LineNr`     |
-| `MidoriBullet`      | `Special`    |
-| `MidoriQuote`       | `Comment`    |
-| `MidoriQuoteBar`    | `Special`    |
-| `MidoriRule`        | `NonText`    |
-| `MidoriH1Rule`      | `Title`      |
-| `MidoriH2Rule`      | `Comment`    |
-| `MidoriDocTitle`    | `Title`      |
-| `MidoriDocFt`       | `Special`    |
-| `MidoriTableBorder` | `Comment`    |
-| `MidoriTableHeader` | `Title`      |
-| `MidoriTableCell`   | `Normal`     |
-| `MidoriTaskOpen`    | `Special`    |
-| `MidoriTaskDone`    | `Comment`    |
-| `MidoriTaskDoneText` | `Comment`   |
-| `MidoriLink`        | `Underlined` |
-| `MidoriLinkIcon`    | `Special`    |
-| `MidoriFrontmatter` | `Comment`    |
-| `MidoriFrontmatterKey` | `Identifier` |
-| `MidoriTocHeading`  | `Special`    |
+| Group                  | Default link        |
+| ---------------------- | ------------------- |
+| `MidoriH1`–`MidoriH2`  | `Title`             |
+| `MidoriH3`–`MidoriH4`  | `Function`          |
+| `MidoriH5`–`MidoriH6`  | `Identifier`        |
+| `MidoriBold`           | `(bold)`            |
+| `MidoriItalic`         | `(italic)`          |
+| `MidoriStrike`         | `(strikethrough)`   |
+| `MidoriInlineCode`     | `String`            |
+| `MidoriCodeBlock`      | `CursorLine`        |
+| `MidoriCodeBorder`     | `Comment`           |
+| `MidoriCodeLang`       | `Special`           |
+| `MidoriCodeLineNr`     | `LineNr`            |
+| `MidoriBullet`         | `Special`           |
+| `MidoriQuote`          | `Comment`           |
+| `MidoriQuoteBar`       | `Special`           |
+| `MidoriRule`           | `NonText`           |
+| `MidoriH1Rule`         | `Title`             |
+| `MidoriH2Rule`         | `Comment`           |
+| `MidoriDocTitle`       | `Title`             |
+| `MidoriDocFt`          | `Special`           |
+| `MidoriTableBorder`    | `Comment`           |
+| `MidoriTableHeader`    | `Title`             |
+| `MidoriTableCell`      | `Normal`            |
+| `MidoriTaskOpen`       | `Special`           |
+| `MidoriTaskDone`       | `Comment`           |
+| `MidoriTaskDoneText`   | `Comment`           |
+| `MidoriLink`           | `Underlined`        |
+| `MidoriLinkIcon`       | `Special`           |
+| `MidoriFrontmatter`    | `Comment`           |
+| `MidoriFrontmatterKey` | `Identifier`        |
+| `MidoriTocHeading`     | `Special`           |
 
 ## Mermaid
 
@@ -183,4 +197,4 @@ The behavior suite intentionally avoids Lua test frameworks; it shells out to
 
 ## License
 
-MIT (see `LICENSE` once added).
+MIT.
