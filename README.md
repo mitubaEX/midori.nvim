@@ -11,12 +11,17 @@ no rewriting of the source buffer.
 - Line-based parser, zero runtime dependencies
 - Decoration via extmarks (markers like `**bold**` and `` `code` `` are stripped from the visible text)
 - Headings H1–H6 with per-level prefix glyph and highlight
-- Lists, blockquotes, horizontal rules
+- Lists, **task lists** (☐/☑), blockquotes, horizontal rules
+- **Inline links** rendered as `text ↗` (URLs hidden) and **images** as `[image: alt — path]`
+- **Tables** with box-drawing borders and per-column alignment
+- **YAML frontmatter** rendered as a title card at the top
 - Fenced code blocks with frame, language label and line numbers
-- **Optional syntax highlighting** inside code blocks via Neovim treesitter
-- **Optional mermaid graph rendering** via [`mermaid-ascii`](https://github.com/AlexanderGrooff/mermaid-ascii)
+- **Treesitter syntax highlighting** inside code blocks
+- **Mermaid graph rendering** via [`mermaid-ascii`](https://github.com/AlexanderGrooff/mermaid-ascii)
+- **TOC sidebar** (`:MidoriToc`) — heading list with jump-on-`<CR>`
+- **Watch mode** — re-renders the reader on `:w`
 - Reader window mode: `vsplit` (default) / `full` / `float`
-- `q` to close the reader
+- `q` to close the reader, `gx` to open the link under cursor
 
 ## Requirements
 
@@ -31,7 +36,7 @@ no rewriting of the source buffer.
 {
   "mitubaEX/midori.nvim",
   ft = "markdown",
-  cmd = { "MidoriView", "MidoriToggle", "MidoriClose" },
+  cmd = { "MidoriView", "MidoriToggle", "MidoriClose", "MidoriToc", "MidoriRefresh" },
   opts = {},
 }
 ```
@@ -44,15 +49,23 @@ Or as a local clone:
 
 ## Usage
 
-| Command           | Description                                |
-| ----------------- | ------------------------------------------ |
-| `:MidoriView`     | Open the reader for the current buffer     |
-| `:MidoriClose`    | Close the reader                           |
-| `:MidoriToggle`   | Toggle the reader                          |
+| Command           | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `:MidoriView`     | Open the reader for the current buffer            |
+| `:MidoriClose`    | Close the reader                                  |
+| `:MidoriToggle`   | Toggle the reader                                 |
+| `:MidoriToc`      | Open a heading-list sidebar to the left           |
+| `:MidoriRefresh`  | Re-render the reader from the current source      |
 
 Inside the reader buffer:
 
 - `q` — close
+- `gx` — open the URL under the cursor (`vim.ui.open`)
+
+Inside the TOC sidebar:
+
+- `q` — close the TOC (the reader stays open)
+- `<CR>` — jump the reader to the heading on the current line
 
 ## Configuration
 
@@ -85,6 +98,11 @@ require("midori").setup({
     bin     = nil,
   },
 
+  watch = {
+    -- re-render the reader on the source buffer's BufWritePost
+    enabled = true,
+  },
+
   rule_width = 60,
 })
 ```
@@ -111,6 +129,17 @@ colorscheme applies automatically. Override with `vim.api.nvim_set_hl(0, ...)`.
 | `MidoriQuote`       | `Comment`    |
 | `MidoriQuoteBar`    | `Special`    |
 | `MidoriRule`        | `NonText`    |
+| `MidoriTableBorder` | `Comment`    |
+| `MidoriTableHeader` | `Title`      |
+| `MidoriTableCell`   | `Normal`     |
+| `MidoriTaskOpen`    | `Special`    |
+| `MidoriTaskDone`    | `Comment`    |
+| `MidoriTaskDoneText` | `Comment`   |
+| `MidoriLink`        | `Underlined` |
+| `MidoriLinkIcon`    | `Special`    |
+| `MidoriFrontmatter` | `Comment`    |
+| `MidoriFrontmatterKey` | `Identifier` |
+| `MidoriTocHeading`  | `Special`    |
 
 ## Mermaid
 
