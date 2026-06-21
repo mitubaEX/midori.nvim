@@ -9,7 +9,7 @@ local M = {}
 local NS = vim.api.nvim_create_namespace("midori")
 
 -- The reader buffer currently open (one at a time).
-local state = { buf = nil, win = nil, source = nil }
+local state = { buf = nil, win = nil, source = nil, links = {} }
 
 local function open_window(opts)
 	local mode = opts.window or "vsplit"
@@ -69,6 +69,7 @@ function M.open(source_buf)
 	local buf, win = open_window(config.options)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, out.lines)
 	apply_marks(buf, out.marks)
+	state.links = out.links or {}
 
 	vim.bo[buf].filetype = "midori"
 	vim.bo[buf].buftype = "nofile"
@@ -88,6 +89,19 @@ function M.open(source_buf)
 		M.close()
 	end, { buffer = buf, nowait = true, silent = true, desc = "midori: close reader" })
 
+	vim.keymap.set("n", "gx", function()
+		local url = M.url_at_cursor()
+		if url then
+			if vim.ui and vim.ui.open then
+				vim.ui.open(url)
+			else
+				vim.fn.system({ "open", url })
+			end
+		else
+			vim.notify("midori: no link under cursor", vim.log.levels.INFO)
+		end
+	end, { buffer = buf, nowait = true, silent = true, desc = "midori: open URL under cursor" })
+
 	state.buf = buf
 	state.win = win
 	state.source = source_buf
@@ -100,7 +114,23 @@ function M.close()
 	if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
 		pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
 	end
-	state.buf, state.win, state.source = nil, nil, nil
+	state.buf, state.win, state.source, state.links = nil, nil, nil, {}
+end
+
+-- Return the URL covering the cursor in the reader buffer, or nil.
+function M.url_at_cursor()
+	if not state.win or not vim.api.nvim_win_is_valid(state.win) then
+		return nil
+	end
+	local cur = vim.api.nvim_win_get_cursor(state.win)
+	local row = cur[1] - 1
+	local col = cur[2]
+	for _, l in ipairs(state.links or {}) do
+		if l.line == row and col >= l.col_start and col < l.col_end then
+			return l.url
+		end
+	end
+	return nil
 end
 
 function M.toggle()

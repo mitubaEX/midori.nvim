@@ -143,6 +143,24 @@ for _, m in ipairs(task_out.marks) do
 end
 check(has_done_dim, "render: done task line gets MidoriTaskDoneText line_hl")
 
+-- ---- render: links ----
+local link_blocks = parser.parse({ "See [docs](https://example.com/d) and [api](http://e.com/a) okay." })
+local lout = render.render(link_blocks)
+local ljoined = table.concat(lout.lines, "\n")
+check(ljoined:find("docs") ~= nil and ljoined:find("api") ~= nil, "render: link text preserved")
+check(ljoined:find("↗") ~= nil, "render: link arrow icon shown")
+check(ljoined:find("https://example.com") == nil, "render: link URL hidden from display")
+check(type(lout.links) == "table" and #lout.links == 2, "render: link table captured (2 entries)")
+check(lout.links[1] and lout.links[1].url == "https://example.com/d", "render: first link URL recorded as user_data")
+
+-- image: ![alt](path)
+local img_blocks = parser.parse({ "An ![logo](./logo.png) here." })
+local iout = render.render(img_blocks)
+local ijoined = table.concat(iout.lines, "\n")
+check(ijoined:find("image:") ~= nil, "render: image becomes [image: …]")
+check(ijoined:find("logo") ~= nil, "render: image alt text preserved")
+check(ijoined:find("!%[") == nil, "render: image '![' syntax stripped")
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw
@@ -180,6 +198,18 @@ local rbuf = vim.api.nvim_get_current_buf()
 check(vim.bo[rbuf].filetype == "midori", "view: reader buffer filetype=midori")
 check(vim.bo[rbuf].modifiable == false, "view: reader buffer is read-only")
 check(#vim.api.nvim_buf_get_lines(rbuf, 0, -1, false) > 1, "view: reader buffer populated")
+
+-- ---- view: url_at_cursor ----
+require("midori").close()
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "See [docs](https://example.com/d) here." })
+vim.cmd("MidoriView")
+local view = require("midori.view")
+-- cursor on "docs" (position around col 5) should return the URL
+vim.api.nvim_win_set_cursor(0, { 1, 6 })
+check(view.url_at_cursor() == "https://example.com/d", "view: gx (url_at_cursor) finds URL on link text")
+-- cursor on "here" should return nil
+vim.api.nvim_win_set_cursor(0, { 1, 28 })
+check(view.url_at_cursor() == nil, "view: url_at_cursor returns nil outside any link")
 
 -- ---- summary ----
 if #failures > 0 then
