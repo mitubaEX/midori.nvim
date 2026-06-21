@@ -44,31 +44,102 @@ local function has_treesitter()
 	return vim ~= nil and vim.treesitter ~= nil and vim.treesitter.get_string_parser ~= nil
 end
 
+-- Fallback: drive Vim's builtin `:syntax` engine on a scratch buffer and read
+-- per-cell highlight groups via synID(). Used when no treesitter parser is
+-- available for `lang` (e.g. bash on a stock Neovim install).
+function M.highlights_via_syntax(lang, body_lines)
+	if not lang or lang == "" or #body_lines == 0 then
+		return {}
+	end
+	if not (vim and vim.api and vim.api.nvim_create_buf and vim.fn and vim.fn.synID) then
+		return {}
+	end
+
+	local ok_buf, buf = pcall(vim.api.nvim_create_buf, false, true)
+	if not ok_buf or not buf or buf == 0 then
+		return {}
+	end
+	pcall(vim.api.nvim_buf_set_lines, buf, 0, -1, false, body_lines)
+
+	local marks = {}
+	local ok_call = pcall(vim.api.nvim_buf_call, buf, function()
+		-- Make sure the syntax engine is active in this nvim instance and load
+		-- the runtime syntax for `lang`. Both are guarded — a missing syntax
+		-- file just leaves synID() returning 0 everywhere and we emit nothing.
+		pcall(vim.cmd, "syntax enable")
+		pcall(vim.cmd, "runtime! syntax/" .. lang .. ".vim")
+		pcall(function()
+			vim.bo.filetype = lang
+		end)
+		pcall(vim.cmd, "syntax sync fromstart")
+
+		for i, line in ipairs(body_lines) do
+			local n = #line
+			local col = 1
+			while col <= n do
+				local id = vim.fn.synID(i, col, 1)
+				local tid = id ~= 0 and vim.fn.synIDtrans(id) or 0
+				local name = tid ~= 0 and vim.fn.synIDattr(tid, "name") or ""
+				if name ~= "" then
+					local run_end = col
+					while run_end <= n do
+						local id2 = vim.fn.synID(i, run_end, 1)
+						local tid2 = id2 ~= 0 and vim.fn.synIDtrans(id2) or 0
+						local name2 = tid2 ~= 0 and vim.fn.synIDattr(tid2, "name") or ""
+						if name2 ~= name then
+							break
+						end
+						run_end = run_end + 1
+					end
+					marks[#marks + 1] = {
+						line = i - 1,
+						col_start = col - 1,
+						col_end = run_end - 1,
+						hl_group = name,
+					}
+					col = run_end
+				else
+					col = col + 1
+				end
+			end
+		end
+	end)
+
+	pcall(vim.api.nvim_buf_delete, buf, { force = true })
+	if not ok_call then
+		return {}
+	end
+	return marks
+end
+
 -- Return a list of marks {line, col_start, col_end, hl_group} relative to
 -- the body (line 0-indexed, cols byte-indexed). Empty list on any failure.
+-- Tries treesitter first; falls back to Vim's builtin `:syntax` engine when
+-- no treesitter parser is available for `lang` (e.g. bash on a stock Neovim
+-- install only ships parsers for lua / vim / vimdoc / query / c / markdown).
 function M.highlights(lang, body_lines)
 	lang = M.resolve_lang(lang)
 	if not lang or #body_lines == 0 then
 		return {}
 	end
 	if not has_treesitter() then
-		return {}
+		return M.highlights_via_syntax(lang, body_lines)
 	end
 	local text = table.concat(body_lines, "\n")
 	local ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)
 	if not ok or parser == nil then
-		return {}
+		return M.highlights_via_syntax(lang, body_lines)
 	end
 	local ok_parse, trees = pcall(function()
 		return parser:parse()
 	end)
 	if not ok_parse or not trees or not trees[1] then
-		return {}
+		return M.highlights_via_syntax(lang, body_lines)
 	end
 	local root = trees[1]:root()
 	local query = vim.treesitter.query.get(lang, "highlights")
 	if not query then
-		return {}
+		return M.highlights_via_syntax(lang, body_lines)
 	end
 
 	local function line_len(idx) -- idx is 0-based
