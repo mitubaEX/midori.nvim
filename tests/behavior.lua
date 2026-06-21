@@ -239,6 +239,22 @@ local reader_after = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "
 check(reader_after:find("Second") ~= nil, "view: refresh() re-renders updated source")
 check(reader_after:find("First") == nil, "view: refresh() clears stale content")
 
+-- ---- view: TOC ----
+require("midori").close()
+local toc_buf = vim.api.nvim_create_buf(false, false)
+vim.api.nvim_buf_set_lines(toc_buf, 0, -1, false, { "# Alpha", "para", "## Beta", "more", "### Gamma" })
+vim.api.nvim_set_current_buf(toc_buf)
+vim.cmd("MidoriView")
+local items = view.toc_items()
+check(type(items) == "table" and #items == 3, "view: toc_items returns 3 headings")
+check(items[1].text == "Alpha" and items[1].level == 1, "view: first TOC item is 'Alpha' (H1)")
+check(items[3].level == 3, "view: third TOC item is H3")
+vim.cmd("MidoriToc")
+local tbuf = vim.api.nvim_get_current_buf()
+check(vim.bo[tbuf].filetype == "midori-toc", "view: TOC buffer filetype=midori-toc")
+local toc_lines = vim.api.nvim_buf_get_lines(tbuf, 0, -1, false)
+check(#toc_lines >= 3 and table.concat(toc_lines, "\n"):find("Alpha"), "view: TOC buffer lists headings")
+
 -- ---- summary ----
 if #failures > 0 then
 	io.stderr:write(("\n%d test(s) FAILED\n"):format(#failures))

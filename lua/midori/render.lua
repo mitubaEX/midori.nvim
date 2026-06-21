@@ -522,11 +522,12 @@ end
 
 function M.render(blocks)
 	local opts = config.options
-	local lines, marks, links = {}, {}, {}
+	local lines, marks, links, headings = {}, {}, {}, {}
 	for _, block in ipairs(blocks) do
 		if block.kind == "frontmatter" then
 			emit_frontmatter(lines, marks, block)
 		elseif block.kind == "heading" then
+			headings[#headings + 1] = { level = block.level, text = block.text, line = #lines }
 			emit_heading(lines, marks, links, block, opts)
 		elseif block.kind == "para" then
 			emit_para(lines, marks, links, block)
@@ -548,7 +549,7 @@ function M.render(blocks)
 			lines[#lines + 1] = ""
 		end
 	end
-	return { lines = lines, marks = marks, links = links }
+	return { lines = lines, marks = marks, links = links, headings = headings }
 end
 
 return M

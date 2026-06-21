@@ -15,3 +15,11 @@ end, { desc = "Close midori reader" })
 vim.api.nvim_create_user_command("MidoriToggle", function()
 	require("midori").toggle()
 end, { desc = "Toggle midori reader" })
+
+vim.api.nvim_create_user_command("MidoriToc", function()
+	require("midori").toc()
+end, { desc = "Open midori TOC sidebar" })
+
+vim.api.nvim_create_user_command("MidoriRefresh", function()
+	require("midori").refresh()
+end, { desc = "Re-render the midori reader" })

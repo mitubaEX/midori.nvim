@@ -9,7 +9,14 @@ local M = {}
 local NS = vim.api.nvim_create_namespace("midori")
 
 -- The reader buffer currently open (one at a time).
-local state = { buf = nil, win = nil, source = nil, links = {} }
+local state = {
+	buf = nil,
+	win = nil,
+	source = nil,
+	links = {},
+	headings = {},
+	toc = { buf = nil, win = nil },
+}
 
 local function open_window(opts)
 	local mode = opts.window or "vsplit"
@@ -65,6 +72,7 @@ local function render_into(buf, source_buf)
 	apply_marks(buf, out.marks)
 	vim.bo[buf].modifiable = false
 	state.links = out.links or {}
+	state.headings = out.headings or {}
 end
 
 local AUGROUP = "midori_watch"
@@ -138,6 +146,72 @@ function M.open(source_buf)
 	setup_watch(buf, source_buf)
 end
 
+function M.toc_items()
+	return state.headings or {}
+end
+
+function M.close_toc()
+	if state.toc.win and vim.api.nvim_win_is_valid(state.toc.win) then
+		pcall(vim.api.nvim_win_close, state.toc.win, true)
+	end
+	if state.toc.buf and vim.api.nvim_buf_is_valid(state.toc.buf) then
+		pcall(vim.api.nvim_buf_delete, state.toc.buf, { force = true })
+	end
+	state.toc = { buf = nil, win = nil }
+end
+
+function M.open_toc()
+	if not state.buf or not vim.api.nvim_buf_is_valid(state.buf) then
+		vim.notify("midori: reader is not open", vim.log.levels.WARN)
+		return
+	end
+	M.close_toc()
+
+	local items = state.headings or {}
+	local lines = {}
+	for _, h in ipairs(items) do
+		lines[#lines + 1] = string.rep("  ", math.max(0, h.level - 1)) .. h.text
+	end
+	if #lines == 0 then
+		lines = { "(no headings)" }
+	end
+
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	vim.bo[buf].modifiable = false
+	vim.bo[buf].buftype = "nofile"
+	vim.bo[buf].bufhidden = "wipe"
+	vim.bo[buf].filetype = "midori-toc"
+
+	-- open as a left split next to the reader
+	if state.win and vim.api.nvim_win_is_valid(state.win) then
+		vim.api.nvim_set_current_win(state.win)
+	end
+	vim.cmd("topleft 28vsplit")
+	local win = vim.api.nvim_get_current_win()
+	vim.api.nvim_win_set_buf(win, buf)
+	vim.wo[win].number = false
+	vim.wo[win].relativenumber = false
+	vim.wo[win].signcolumn = "no"
+	vim.wo[win].wrap = false
+
+	state.toc.buf = buf
+	state.toc.win = win
+
+	vim.keymap.set("n", "q", function()
+		M.close_toc()
+	end, { buffer = buf, nowait = true, silent = true, desc = "midori: close TOC" })
+
+	vim.keymap.set("n", "<CR>", function()
+		local row = vim.api.nvim_win_get_cursor(0)[1]
+		local item = items[row]
+		if item and state.win and vim.api.nvim_win_is_valid(state.win) then
+			vim.api.nvim_set_current_win(state.win)
+			vim.api.nvim_win_set_cursor(state.win, { item.line + 1, 0 })
+		end
+	end, { buffer = buf, nowait = true, silent = true, desc = "midori: jump to heading" })
+end
+
 function M.refresh()
 	if not state.buf or not vim.api.nvim_buf_is_valid(state.buf) then
 		return
@@ -150,6 +224,7 @@ end
 
 function M.close()
 	teardown_watch()
+	M.close_toc()
 	if state.win and vim.api.nvim_win_is_valid(state.win) then
 		pcall(vim.api.nvim_win_close, state.win, true)
 	end
