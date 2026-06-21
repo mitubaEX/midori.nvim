@@ -307,6 +307,40 @@ do
 	end
 end
 
+-- ---- syntax: vim-runtime fallback (bash etc. have no bundled TS parser) ----
+do
+	local bash_marks = syntax.highlights("bash", { "echo hi", "ls -l" })
+	check(
+		type(bash_marks) == "table" and #bash_marks > 0,
+		"syntax: bash fallback emits marks via vim builtin syntax (no TS parser)"
+	)
+	local sh_marks = syntax.highlights("sh", { 'if [ -z "$x" ]; then echo "x"; fi' })
+	check(#sh_marks > 0, "syntax: 'sh' alias also resolves through fallback")
+	-- fallback marks must stay within their source-line byte bounds
+	local body = { "echo hi", "ls -l" }
+	local within = true
+	for _, m in ipairs(bash_marks) do
+		local llen = #(body[m.line + 1] or "")
+		if m.col_start < 0 or m.col_end > llen or m.col_end <= m.col_start then
+			within = false
+		end
+	end
+	check(within, "syntax: fallback marks stay within line bounds")
+end
+
+-- ---- render: bash code block ends up with col-range marks (real reader path) ----
+do
+	local rblocks = parser.parse({ "```bash", "echo hi", "```" })
+	local rout = render.render(rblocks)
+	local has_color = false
+	for _, m in ipairs(rout.marks) do
+		if m.hl_group and m.col_start and m.hl_group ~= "MidoriCodeLang" and m.hl_group ~= "MidoriCodeLineNr" then
+			has_color = true
+		end
+	end
+	check(has_color, "render: bash code block emits col-range syntax marks")
+end
+
 -- ---- mermaid ----
 local mermaid = require("midori.mermaid")
 local available = mermaid.is_available()
