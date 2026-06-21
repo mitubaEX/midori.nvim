@@ -18,11 +18,28 @@ local M = {}
 local INLINE_PATTERNS = {
 	{ name = "code", left = "`", right = "`", hl = "MidoriInlineCode" },
 	{ name = "strong", left = "**", right = "**", hl = "MidoriBold" },
-	{ name = "strong_us", left = "__", right = "__", hl = "MidoriBold" },
+	{ name = "strong_us", left = "__", right = "__", hl = "MidoriBold", word_boundary = true },
 	{ name = "strike", left = "~~", right = "~~", hl = "MidoriStrike" },
 	{ name = "em", left = "*", right = "*", hl = "MidoriItalic" },
-	{ name = "em_us", left = "_", right = "_", hl = "MidoriItalic" },
+	{ name = "em_us", left = "_", right = "_", hl = "MidoriItalic", word_boundary = true },
 }
+
+-- CommonMark-ish word boundary: a `_` marker only opens / closes when it sits
+-- next to a non-alphanumeric character (or string edge). Prevents
+-- intra-word underscores ("nvim_lua_config") from being read as emphasis.
+local function is_word_char(ch)
+	return ch ~= nil and ch:match("[%w]") ~= nil
+end
+
+local function ok_left_boundary(text, ls)
+	local before = ls > 1 and text:sub(ls - 1, ls - 1) or nil
+	return not is_word_char(before)
+end
+
+local function ok_right_boundary(text, re)
+	local after = re < #text and text:sub(re + 1, re + 1) or nil
+	return not is_word_char(after)
+end
 
 local LINK_ARROW = " ↗"
 
@@ -115,7 +132,11 @@ local function strip_inline(text, protected)
 				if not in_protected(ls - 1) then
 					local rs, re = out:find(p.right, le + 1, true)
 					if rs and rs > le + 1 and not in_protected(rs - 1) then
-						if hit == nil or ls < hit.ls then
+						local ok = true
+						if p.word_boundary then
+							ok = ok_left_boundary(out, ls) and ok_right_boundary(out, re)
+						end
+						if ok and (hit == nil or ls < hit.ls) then
 							hit = { ls = ls, le = le, rs = rs, re = re, p = p }
 						end
 					end
@@ -190,11 +211,21 @@ end
 
 local function emit_heading(lines, marks, links, block, opts)
 	local icon = opts.heading.icons[block.level] or ""
-	local prefix = icon .. " "
+	local prefix = icon == "" and "" or (icon .. " ")
 	local idx = #lines
 	local visible = process_inline(block.text, idx, #prefix, marks, links)
 	lines[#lines + 1] = prefix .. visible
 	marks[#marks + 1] = { line = idx, line_hl = "MidoriH" .. block.level }
+
+	-- H1 / H2 get an underline rule. H3..H6 are color-only.
+	local rule_width = math.max(#prefix + #visible, opts.rule_width or 60)
+	local rule_chars = opts.heading.rules or { "━", "─" }
+	local rule_char = rule_chars[block.level]
+	if rule_char and rule_char ~= "" then
+		local ridx = #lines
+		lines[#lines + 1] = string.rep(rule_char, rule_width)
+		marks[#marks + 1] = { line = ridx, line_hl = "MidoriH" .. block.level .. "Rule" }
+	end
 end
 
 local function emit_para(lines, marks, links, block)
@@ -263,7 +294,7 @@ local function emit_framed_block(lines, marks, label, body_lines)
 	end
 	local inner = math.max(longest, 20)
 	local llabel = label ~= "" and (" " .. label .. " ") or ""
-	local top = "╭─" .. llabel .. string.rep("─", inner - #llabel - 1) .. "╮"
+	local top = "╭─" .. llabel .. string.rep("─", inner + 1 - #llabel) .. "╮"
 	local idx = #lines
 	lines[#lines + 1] = top
 	marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBorder" }
@@ -329,7 +360,7 @@ local function emit_code(lines, marks, block, opts)
 	inner = math.max(inner, 20)
 
 	if opts.code.border then
-		local top = "╭─" .. label .. string.rep("─", inner - #label - 1) .. "╮"
+		local top = "╭─" .. label .. string.rep("─", inner + 1 - #label) .. "╮"
 		local idx = #lines
 		lines[#lines + 1] = top
 		marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBorder" }
@@ -348,7 +379,7 @@ local function emit_code(lines, marks, block, opts)
 	for i, bl in ipairs(body) do
 		local prefix = ""
 		if opts.code.line_numbers then
-			prefix = string.format("%" .. nr_width .. "d │ ", i)
+			prefix = string.format("%" .. nr_width .. "d   ", i)
 		end
 		local content = prefix .. bl
 		local pad = inner - #content
@@ -520,9 +551,47 @@ local function emit_frontmatter(lines, marks, block)
 	marks[#marks + 1] = { line = bot_idx, line_hl = "MidoriFrontmatter" }
 end
 
-function M.render(blocks)
+local function emit_doc_header(lines, marks, meta, opts)
+	local title = (meta and meta.title) or ""
+	if title == "" then
+		return
+	end
+	local ft = (meta and meta.ft) or ""
+	local width = math.max(opts.rule_width or 60, #title + #ft + 6)
+	local idx = #lines
+	local right = ft ~= "" and ("[" .. ft .. "]") or ""
+	local pad = width - #title - #right
+	if pad < 1 then
+		pad = 1
+	end
+	lines[#lines + 1] = title .. string.rep(" ", pad) .. right
+	marks[#marks + 1] = { line = idx, line_hl = "MidoriDocTitle" }
+	-- title col-range and ft col-range
+	if title ~= "" then
+		marks[#marks + 1] = {
+			line = idx,
+			col_start = 0,
+			col_end = #title,
+			hl_group = "MidoriH1",
+		}
+	end
+	if right ~= "" then
+		marks[#marks + 1] = {
+			line = idx,
+			col_start = #title + pad,
+			col_end = #title + pad + #right,
+			hl_group = "MidoriDocFt",
+		}
+	end
+	local ridx = #lines
+	lines[#lines + 1] = string.rep("━", width)
+	marks[#marks + 1] = { line = ridx, line_hl = "MidoriH1Rule" }
+end
+
+function M.render(blocks, meta)
 	local opts = config.options
 	local lines, marks, links, headings = {}, {}, {}, {}
+	emit_doc_header(lines, marks, meta, opts)
 	for _, block in ipairs(blocks) do
 		if block.kind == "frontmatter" then
 			emit_frontmatter(lines, marks, block)

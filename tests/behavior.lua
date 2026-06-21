@@ -119,8 +119,31 @@ for _, m in ipairs(out.marks) do
 	end
 end
 check(has_h1, "render: H1 line highlight emitted")
+check(joined:find("^▌") == nil, "render: default heading uses no icon prefix")
+local has_h1_rule = false
+local has_h2_rule = false
+for _, m in ipairs(out.marks) do
+	if m.line_hl == "MidoriH1Rule" then
+		has_h1_rule = true
+	elseif m.line_hl == "MidoriH2Rule" then
+		has_h2_rule = true
+	end
+end
+check(has_h1_rule, "render: H1 underline (━) emitted")
+-- add an H2 sample to test rule emission for H2 too
+local h2_blocks = parser.parse({ "## Section", "body" })
+local h2_out = render.render(h2_blocks)
+for _, m in ipairs(h2_out.marks) do
+	if m.line_hl == "MidoriH2Rule" then
+		has_h2_rule = true
+	end
+end
+check(has_h2_rule, "render: H2 underline (─) emitted")
 check(joined:find("╭") ~= nil and joined:find("╰") ~= nil, "render: code block frame drawn")
 check(joined:find("lua") ~= nil, "render: code language label present")
+-- the inner '│' between line number and code body should be gone (now whitespace gutter)
+check(joined:find("1 │ print") == nil, "render: code body no inner '│' separator")
+check(joined:find("1   print") ~= nil, "render: code body uses whitespace gutter '<n>   <code>'")
 
 -- ---- render: tables ----
 local tout = render.render(table_blocks)
@@ -173,6 +196,26 @@ for _, m in ipairs(fm_out.marks) do
 	end
 end
 check(has_fm_hl, "render: frontmatter card line_hl emitted")
+
+-- ---- render: document header ----
+local hb = render.render({ { kind = "para", text = "body" } }, { title = "foo", ft = "markdown" })
+local hb_joined = table.concat(hb.lines, "\n")
+check(hb_joined:find("foo") ~= nil, "render: doc header includes title 'foo'")
+check(hb_joined:find("markdown") ~= nil, "render: doc header includes filetype tag")
+-- unnamed (no title) skips the header entirely
+local hb_skip = render.render({ { kind = "para", text = "body" } }, { title = "", ft = "markdown" })
+check(hb_skip.lines[1] == "body", "render: doc header skipped when title is empty")
+
+-- ---- regression: word-boundary underscore in headings/text ----
+local ub = render.render(parser.parse({ "# nvim_lua_config" }))
+local ub_joined = table.concat(ub.lines, "\n")
+check(ub_joined:find("nvim_lua_config") ~= nil, "render: intra-word '_' is NOT eaten as italic marker")
+
+-- ---- regression: code block top border width matches body / bottom ----
+local cw = render.render(parser.parse({ "```text", "sh setup.sh", "```" }))
+local top_w = vim.fn.strdisplaywidth(cw.lines[1])
+local bot_w = vim.fn.strdisplaywidth(cw.lines[#cw.lines])
+check(top_w == bot_w, ("render: code block top width == bottom width (%d == %d)"):format(top_w, bot_w))
 
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")

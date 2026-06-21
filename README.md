@@ -10,7 +10,8 @@ no rewriting of the source buffer.
 
 - Line-based parser, zero runtime dependencies
 - Decoration via extmarks (markers like `**bold**` and `` `code` `` are stripped from the visible text)
-- Headings H1–H6 with per-level prefix glyph and highlight
+- **Document header bar** — filename + `[ft]` tag at the top of the reader
+- Headings H1–H6 with per-level color, **H1 / H2 get a horizontal underline rule**
 - Lists, **task lists** (☐/☑), blockquotes, horizontal rules
 - **Inline links** rendered as `text ↗` (URLs hidden) and **images** as `[image: alt — path]`
 - **Tables** with box-drawing borders and per-column alignment
@@ -80,8 +81,12 @@ require("midori").setup({
   height = 0.85,
 
   heading = {
-    -- prefix glyph per level (1..6)
-    icons = { "▌", "▍", "▎", "▏", "┃", "│" },
+    -- prefix glyph per level (1..6). Empty strings = color-only headings,
+    -- which matches the leaf-style preview look. Set non-empty values to
+    -- bring back the ▌▍▎ glyphs.
+    icons = { "", "", "", "", "", "" },
+    -- horizontal-rule character per level. Set "" to disable for a level.
+    rules = { "━", "─", "", "", "", "" },
   },
 
   code = {
@@ -129,6 +134,10 @@ colorscheme applies automatically. Override with `vim.api.nvim_set_hl(0, ...)`.
 | `MidoriQuote`       | `Comment`    |
 | `MidoriQuoteBar`    | `Special`    |
 | `MidoriRule`        | `NonText`    |
+| `MidoriH1Rule`      | `Title`      |
+| `MidoriH2Rule`      | `Comment`    |
+| `MidoriDocTitle`    | `Title`      |
+| `MidoriDocFt`       | `Special`    |
 | `MidoriTableBorder` | `Comment`    |
 | `MidoriTableHeader` | `Title`      |
 | `MidoriTableCell`   | `Normal`     |

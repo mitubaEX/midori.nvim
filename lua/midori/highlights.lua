@@ -13,11 +13,13 @@ M.links = {
 	MidoriCodeBorder = "Comment",
 	MidoriCodeLang = "Special",
 	MidoriCodeLineNr = "LineNr",
-	MidoriCodeBlock = "CursorLine",
+	MidoriCodeBlock = "Normal",
 	MidoriBullet = "Special",
 	MidoriQuote = "Comment",
 	MidoriQuoteBar = "Special",
 	MidoriRule = "NonText",
+	MidoriH1Rule = "Title",
+	MidoriH2Rule = "Comment",
 	MidoriTableBorder = "Comment",
 	MidoriTableHeader = "Title",
 	MidoriTableCell = "Normal",
@@ -29,6 +31,8 @@ M.links = {
 	MidoriFrontmatter = "Comment",
 	MidoriFrontmatterKey = "Identifier",
 	MidoriTocHeading = "Special",
+	MidoriDocTitle = "Title",
+	MidoriDocFt = "Special",
 }
 
 function M.setup()
