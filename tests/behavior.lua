@@ -454,6 +454,21 @@ check(vim.bo[tbuf].filetype == "midori-toc", "view: TOC buffer filetype=midori-t
 local toc_lines = vim.api.nvim_buf_get_lines(tbuf, 0, -1, false)
 check(#toc_lines >= 3 and table.concat(toc_lines, "\n"):find("Alpha"), "view: TOC buffer lists headings")
 
+-- ---- highlights: MidoriCodeBlock must not define fg ----
+-- Code block bodies receive `line_hl_group = "MidoriCodeBlock"`. If that group
+-- carries an explicit fg (e.g. via `link = "Normal"`), it wins over the
+-- per-token col-range hl_groups emitted by syntax.highlights() and every byte
+-- in the block ends up the same color. The group must stay fg-less so token
+-- color shines through.
+do
+	require("midori.highlights").setup()
+	local hl = vim.api.nvim_get_hl(0, { name = "MidoriCodeBlock", link = false })
+	check(
+		hl.fg == nil and hl.ctermfg == nil,
+		"highlights: MidoriCodeBlock does not define fg (keeps token color visible)"
+	)
+end
+
 -- ---- summary ----
 if #failures > 0 then
 	io.stderr:write(("\n%d test(s) FAILED\n"):format(#failures))

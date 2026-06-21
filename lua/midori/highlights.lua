@@ -13,7 +13,6 @@ M.links = {
 	MidoriCodeBorder = "Comment",
 	MidoriCodeLang = "Special",
 	MidoriCodeLineNr = "LineNr",
-	MidoriCodeBlock = "Normal",
 	MidoriBullet = "Special",
 	MidoriQuote = "Comment",
 	MidoriQuoteBar = "Special",
@@ -43,6 +42,11 @@ function M.setup()
 	vim.api.nvim_set_hl(0, "MidoriBold", { bold = true, default = true })
 	vim.api.nvim_set_hl(0, "MidoriItalic", { italic = true, default = true })
 	vim.api.nvim_set_hl(0, "MidoriStrike", { strikethrough = true, default = true })
+	-- Code-block body uses `line_hl_group = "MidoriCodeBlock"` per body line.
+	-- Keep it fg-less so the per-token col-range hl_groups emitted by
+	-- syntax.highlights() ("@keyword.go" etc.) actually show through. Users
+	-- can add a backdrop via `:hi MidoriCodeBlock guibg=...`.
+	vim.api.nvim_set_hl(0, "MidoriCodeBlock", { default = true })
 end
 
 return M
