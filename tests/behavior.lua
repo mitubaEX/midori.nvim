@@ -141,6 +141,9 @@ end
 check(has_h2_rule, "render: H2 underline (─) emitted")
 check(joined:find("╭") ~= nil and joined:find("╰") ~= nil, "render: code block frame drawn")
 check(joined:find("lua") ~= nil, "render: code language label present")
+-- the inner '│' between line number and code body should be gone (now whitespace gutter)
+check(joined:find("1 │ print") == nil, "render: code body no inner '│' separator")
+check(joined:find("1   print") ~= nil, "render: code body uses whitespace gutter '<n>   <code>'")
 
 -- ---- render: tables ----
 local tout = render.render(table_blocks)

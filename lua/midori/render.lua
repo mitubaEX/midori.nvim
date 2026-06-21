@@ -358,7 +358,7 @@ local function emit_code(lines, marks, block, opts)
 	for i, bl in ipairs(body) do
 		local prefix = ""
 		if opts.code.line_numbers then
-			prefix = string.format("%" .. nr_width .. "d │ ", i)
+			prefix = string.format("%" .. nr_width .. "d   ", i)
 		end
 		local content = prefix .. bl
 		local pad = inner - #content
