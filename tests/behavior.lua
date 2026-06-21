@@ -122,6 +122,14 @@ check(has_h1, "render: H1 line highlight emitted")
 check(joined:find("╭") ~= nil and joined:find("╰") ~= nil, "render: code block frame drawn")
 check(joined:find("lua") ~= nil, "render: code language label present")
 
+-- ---- render: tables ----
+local tout = render.render(table_blocks)
+local tjoined = table.concat(tout.lines, "\n")
+check(tjoined:find("┌") ~= nil and tjoined:find("┐") ~= nil, "render: table top border drawn")
+check(tjoined:find("├") ~= nil and tjoined:find("┤") ~= nil, "render: table separator drawn")
+check(tjoined:find("└") ~= nil and tjoined:find("┘") ~= nil, "render: table bottom border drawn")
+check(tjoined:find("midori") and tjoined:find("Lua"), "render: table cell content preserved")
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw

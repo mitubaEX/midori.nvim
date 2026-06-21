@@ -296,6 +296,85 @@ local function emit_code(lines, marks, block, opts)
 	end
 end
 
+local function pad_cell(text, width, align)
+	local space = width - #text
+	if space <= 0 then
+		return text
+	end
+	if align == "right" then
+		return string.rep(" ", space) .. text
+	elseif align == "center" then
+		local left = math.floor(space / 2)
+		local right = space - left
+		return string.rep(" ", left) .. text .. string.rep(" ", right)
+	end
+	return text .. string.rep(" ", space)
+end
+
+local function emit_table(lines, marks, block)
+	local headers = block.headers or {}
+	local aligns = block.aligns or {}
+	local rows = block.rows or {}
+	local ncols = #headers
+	if ncols == 0 then
+		return
+	end
+
+	local widths = {}
+	for c = 1, ncols do
+		widths[c] = #(headers[c] or "")
+	end
+	for _, row in ipairs(rows) do
+		for c = 1, ncols do
+			local cell = row[c] or ""
+			if #cell > widths[c] then
+				widths[c] = #cell
+			end
+		end
+	end
+
+	local function rule(left, mid, right, fill)
+		local parts = { left }
+		for c = 1, ncols do
+			parts[#parts + 1] = string.rep(fill, widths[c] + 2)
+			parts[#parts + 1] = (c == ncols) and right or mid
+		end
+		return table.concat(parts)
+	end
+
+	local function row_line(cells)
+		local parts = { "│" }
+		for c = 1, ncols do
+			local cell = cells[c] or ""
+			parts[#parts + 1] = " " .. pad_cell(cell, widths[c], aligns[c] or "left") .. " "
+			parts[#parts + 1] = "│"
+		end
+		return table.concat(parts)
+	end
+
+	local top_idx = #lines
+	lines[#lines + 1] = rule("┌", "┬", "┐", "─")
+	marks[#marks + 1] = { line = top_idx, line_hl = "MidoriTableBorder" }
+
+	local hdr_idx = #lines
+	lines[#lines + 1] = row_line(headers)
+	marks[#marks + 1] = { line = hdr_idx, line_hl = "MidoriTableHeader" }
+
+	local sep_idx = #lines
+	lines[#lines + 1] = rule("├", "┼", "┤", "─")
+	marks[#marks + 1] = { line = sep_idx, line_hl = "MidoriTableBorder" }
+
+	for _, row in ipairs(rows) do
+		local idx = #lines
+		lines[#lines + 1] = row_line(row)
+		marks[#marks + 1] = { line = idx, line_hl = "MidoriTableCell" }
+	end
+
+	local bot_idx = #lines
+	lines[#lines + 1] = rule("└", "┴", "┘", "─")
+	marks[#marks + 1] = { line = bot_idx, line_hl = "MidoriTableBorder" }
+end
+
 function M.render(blocks)
 	local opts = config.options
 	local lines, marks = {}, {}
@@ -316,6 +395,8 @@ function M.render(blocks)
 			else
 				emit_code(lines, marks, block, opts)
 			end
+		elseif block.kind == "table" then
+			emit_table(lines, marks, block)
 		elseif block.kind == "blank" then
 			lines[#lines + 1] = ""
 		end
