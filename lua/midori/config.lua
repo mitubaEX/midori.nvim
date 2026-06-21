@@ -1,0 +1,29 @@
+-- midori.nvim configuration
+local M = {}
+
+M.defaults = {
+	-- reader window style: "vsplit" | "full" | "float"
+	window = "vsplit",
+	-- fraction of editor width/height for float windows
+	width = 0.6,
+	height = 0.85,
+	heading = {
+		-- prefix icon per heading level (1..6)
+		icons = { "▌", "▍", "▎", "▏", "┃", "│" },
+	},
+	code = {
+		border = true,
+		line_numbers = true,
+	},
+	-- width of the horizontal rule rendering
+	rule_width = 60,
+}
+
+M.options = vim.deepcopy(M.defaults)
+
+function M.setup(opts)
+	M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+	return M.options
+end
+
+return M
