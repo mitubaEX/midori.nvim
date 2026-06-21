@@ -20,7 +20,10 @@ M.defaults = {
 	},
 	code = {
 		border = true,
-		line_numbers = true,
+		-- Line numbers OFF by default — they add a left gutter that pushes the
+		-- syntax-highlighted body and can clutter narrow reader windows.
+		-- Set to true to bring back the "<n>   <code>" gutter.
+		line_numbers = false,
 		syntax = true,
 	},
 	mermaid = {
