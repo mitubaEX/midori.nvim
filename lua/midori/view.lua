@@ -27,6 +27,7 @@ local function open_window(opts)
 		win = vim.api.nvim_get_current_win()
 		vim.api.nvim_win_set_buf(win, buf)
 	elseif mode == "full" then
+		vim.cmd("tabnew")
 		win = vim.api.nvim_get_current_win()
 		vim.api.nvim_win_set_buf(win, buf)
 	elseif mode == "float" then

@@ -2,7 +2,10 @@
 local M = {}
 
 M.defaults = {
-	-- reader window style: "vsplit" | "full" | "float"
+	-- reader window style:
+	--   "vsplit" — open in a vertical split (default)
+	--   "full"   — open in a new tabpage (true full-screen)
+	--   "float"  — floating window sized by `width` / `height`
 	window = "vsplit",
 	-- fraction of editor width/height for float windows
 	width = 0.6,
