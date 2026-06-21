@@ -228,6 +228,44 @@ check(syntax.resolve_lang("ts") == "typescript", "syntax: alias 'ts' resolves to
 check(syntax.resolve_lang("sh") == "bash", "syntax: alias 'sh' resolves to 'bash'")
 check(syntax.resolve_lang("lua") == "lua", "syntax: unknown alias falls through")
 
+-- resolve_lang must prefer vim.treesitter.language.get_lang() (so users can
+-- register custom aliases via vim.treesitter.language.register())
+do
+	local orig = vim.treesitter.language.get_lang
+	vim.treesitter.language.get_lang = function(name)
+		if name == "totally-fake-lang" then
+			return "lua"
+		end
+	end
+	local resolved = syntax.resolve_lang("totally-fake-lang")
+	vim.treesitter.language.get_lang = orig
+	check(resolved == "lua", "syntax: resolve_lang() honors vim.treesitter.language.get_lang()")
+end
+
+-- when a parser IS available (lua is bundled with nvim), marks should use the
+-- namespaced @<capture>.<lang> highlight-group form and stay within line bounds.
+do
+	local body = { "local x = 1", "short" }
+	local m = syntax.highlights("lua", body)
+	if #m > 0 then
+		local has_ns = false
+		local within_bounds = true
+		for _, mark in ipairs(m) do
+			if type(mark.hl_group) == "string" and mark.hl_group:match("^@.+%.lua$") then
+				has_ns = true
+			end
+			local line_len = #(body[mark.line + 1] or "")
+			if mark.col_end > line_len or mark.col_start < 0 then
+				within_bounds = false
+			end
+		end
+		check(has_ns, "syntax: marks use @<capture>.<lang> namespaced group")
+		check(within_bounds, "syntax: marks stay within body line bounds")
+	else
+		print("  skip - syntax: namespaced groups (no lua parser available)")
+	end
+end
+
 -- ---- mermaid ----
 local mermaid = require("midori.mermaid")
 local available = mermaid.is_available()
