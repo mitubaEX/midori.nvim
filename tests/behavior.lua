@@ -373,6 +373,23 @@ local reader_after = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "
 check(reader_after:find("Second") ~= nil, "view: refresh() re-renders updated source")
 check(reader_after:find("First") == nil, "view: refresh() clears stale content")
 
+-- ---- view: full window mode opens reader in a new tab ----
+require("midori").close()
+require("midori.config").setup({ window = "full" })
+local src_full = vim.api.nvim_create_buf(false, false)
+vim.api.nvim_buf_set_lines(src_full, 0, -1, false, { "# full mode" })
+vim.api.nvim_set_current_buf(src_full)
+local src_tab = vim.api.nvim_get_current_tabpage()
+vim.cmd("MidoriView")
+local reader_tab = vim.api.nvim_get_current_tabpage()
+check(reader_tab ~= src_tab, "view: full mode opens reader in a NEW tabpage")
+check(vim.bo[vim.api.nvim_get_current_buf()].filetype == "midori", "view: full-mode reader buffer ft=midori")
+check(#vim.api.nvim_tabpage_list_wins(reader_tab) == 1, "view: full-mode tab contains only the reader window")
+require("midori").close()
+check(not vim.tbl_contains(vim.api.nvim_list_tabpages(), reader_tab), "view: closing full-mode reader removes its tab")
+-- restore default window mode for any later tests
+require("midori.config").setup({ window = "vsplit" })
+
 -- ---- view: TOC ----
 require("midori").close()
 local toc_buf = vim.api.nvim_create_buf(false, false)

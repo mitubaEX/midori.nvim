@@ -21,7 +21,7 @@ no rewriting of the source buffer.
 - **Mermaid graph rendering** via [`mermaid-ascii`](https://github.com/AlexanderGrooff/mermaid-ascii)
 - **TOC sidebar** (`:MidoriToc`) — heading list with jump-on-`<CR>`
 - **Watch mode** — re-renders the reader on `:w`
-- Reader window mode: `vsplit` (default) / `full` / `float`
+- Reader window mode: `vsplit` (default) / `full` (new tabpage) / `float`
 - `q` to close the reader, `gx` to open the link under cursor
 
 ## Requirements
@@ -74,7 +74,7 @@ Inside the TOC sidebar:
 
 ```lua
 require("midori").setup({
-  -- "vsplit" | "full" | "float"
+  -- "vsplit" (default) | "full" (open in a new tabpage) | "float"
   window = "vsplit",
   -- only used when window = "float"
   width = 0.6,
