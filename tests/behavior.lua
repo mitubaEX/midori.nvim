@@ -261,6 +261,37 @@ local top_w = vim.fn.strdisplaywidth(cw.lines[1])
 local bot_w = vim.fn.strdisplaywidth(cw.lines[#cw.lines])
 check(top_w == bot_w, ("render: code block top width == bottom width (%d == %d)"):format(top_w, bot_w))
 
+-- ---- regression: code block right border aligned for multibyte body lines ----
+-- Body contains Japanese / en-dash / box-drawing — bytes(>cols), so byte-based
+-- width math leaves the right '│' drifting left on those lines. Every frame
+-- line MUST have the same DISPLAY width.
+do
+	local mb = render.render(parser.parse({
+		"```text",
+		"ascii only line",
+		"日本語 を含む行 — em dash も",
+		"▌▍▎ box drawing chars",
+		"```",
+	}))
+	local w0 = vim.fn.strdisplaywidth(mb.lines[1])
+	local all_equal = true
+	local bad
+	for _, l in ipairs(mb.lines) do
+		if vim.fn.strdisplaywidth(l) ~= w0 then
+			all_equal = false
+			bad = l
+			break
+		end
+	end
+	check(
+		all_equal,
+		("render: code block frame lines share display width (got %s ≠ %d)"):format(
+			bad and tostring(vim.fn.strdisplaywidth(bad)) or "?",
+			w0
+		)
+	)
+end
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw

@@ -344,6 +344,10 @@ local function emit_mermaid(lines, marks, block, opts)
 end
 
 local function emit_code(lines, marks, block, opts)
+	-- Width math is in DISPLAY columns, not bytes — body may contain
+	-- multibyte chars (Japanese, em dash, box-drawing) whose byte length
+	-- overstates the displayed width, drifting the right '│' left.
+	local dw = vim.fn.strdisplaywidth
 	local lang = block.lang or ""
 	local body = block.lines or {}
 	local nr_width = 0
@@ -356,8 +360,9 @@ local function emit_code(lines, marks, block, opts)
 
 	local longest = 0
 	for _, l in ipairs(body) do
-		if #l > longest then
-			longest = #l
+		local w = dw(l)
+		if w > longest then
+			longest = w
 		end
 	end
 	local label = lang ~= "" and (" " .. lang .. " ") or ""
@@ -387,7 +392,7 @@ local function emit_code(lines, marks, block, opts)
 			prefix = string.format("%" .. nr_width .. "d   ", i)
 		end
 		local content = prefix .. bl
-		local pad = inner - #content
+		local pad = inner - dw(content)
 		if pad < 0 then
 			pad = 0
 		end
