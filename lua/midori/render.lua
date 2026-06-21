@@ -98,7 +98,17 @@ end
 
 local function emit_list_item(lines, marks, block)
 	local indent = string.rep("  ", math.floor(block.indent / 2))
-	local bullet = block.ordered and (block.marker .. ".") or "•"
+	local bullet
+	local bullet_hl = "MidoriBullet"
+	if block.checkbox == "open" then
+		bullet = "☐"
+		bullet_hl = "MidoriTaskOpen"
+	elseif block.checkbox == "done" then
+		bullet = "☑"
+		bullet_hl = "MidoriTaskDone"
+	else
+		bullet = block.ordered and (block.marker .. ".") or "•"
+	end
 	local prefix = indent .. bullet .. " "
 	local idx = #lines
 	local stripped, spans = strip_inline(block.text)
@@ -107,8 +117,11 @@ local function emit_list_item(lines, marks, block)
 		line = idx,
 		col_start = #indent,
 		col_end = #indent + #bullet,
-		hl_group = "MidoriBullet",
+		hl_group = bullet_hl,
 	}
+	if block.checkbox == "done" then
+		marks[#marks + 1] = { line = idx, line_hl = "MidoriTaskDoneText" }
+	end
 	for _, s in ipairs(spans) do
 		marks[#marks + 1] = {
 			line = idx,

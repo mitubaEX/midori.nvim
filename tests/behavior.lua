@@ -130,6 +130,19 @@ check(tjoined:find("├") ~= nil and tjoined:find("┤") ~= nil, "render: table 
 check(tjoined:find("└") ~= nil and tjoined:find("┘") ~= nil, "render: table bottom border drawn")
 check(tjoined:find("midori") and tjoined:find("Lua"), "render: table cell content preserved")
 
+-- ---- render: tasks ----
+local task_out = render.render(task_blocks)
+local task_joined = table.concat(task_out.lines, "\n")
+check(task_joined:find("☐") ~= nil, "render: open task uses ☐")
+check(task_joined:find("☑") ~= nil, "render: done task uses ☑")
+local has_done_dim = false
+for _, m in ipairs(task_out.marks) do
+	if m.line_hl == "MidoriTaskDoneText" then
+		has_done_dim = true
+	end
+end
+check(has_done_dim, "render: done task line gets MidoriTaskDoneText line_hl")
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw
