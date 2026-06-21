@@ -18,11 +18,28 @@ local M = {}
 local INLINE_PATTERNS = {
 	{ name = "code", left = "`", right = "`", hl = "MidoriInlineCode" },
 	{ name = "strong", left = "**", right = "**", hl = "MidoriBold" },
-	{ name = "strong_us", left = "__", right = "__", hl = "MidoriBold" },
+	{ name = "strong_us", left = "__", right = "__", hl = "MidoriBold", word_boundary = true },
 	{ name = "strike", left = "~~", right = "~~", hl = "MidoriStrike" },
 	{ name = "em", left = "*", right = "*", hl = "MidoriItalic" },
-	{ name = "em_us", left = "_", right = "_", hl = "MidoriItalic" },
+	{ name = "em_us", left = "_", right = "_", hl = "MidoriItalic", word_boundary = true },
 }
+
+-- CommonMark-ish word boundary: a `_` marker only opens / closes when it sits
+-- next to a non-alphanumeric character (or string edge). Prevents
+-- intra-word underscores ("nvim_lua_config") from being read as emphasis.
+local function is_word_char(ch)
+	return ch ~= nil and ch:match("[%w]") ~= nil
+end
+
+local function ok_left_boundary(text, ls)
+	local before = ls > 1 and text:sub(ls - 1, ls - 1) or nil
+	return not is_word_char(before)
+end
+
+local function ok_right_boundary(text, re)
+	local after = re < #text and text:sub(re + 1, re + 1) or nil
+	return not is_word_char(after)
+end
 
 local LINK_ARROW = " ↗"
 
@@ -115,7 +132,11 @@ local function strip_inline(text, protected)
 				if not in_protected(ls - 1) then
 					local rs, re = out:find(p.right, le + 1, true)
 					if rs and rs > le + 1 and not in_protected(rs - 1) then
-						if hit == nil or ls < hit.ls then
+						local ok = true
+						if p.word_boundary then
+							ok = ok_left_boundary(out, ls) and ok_right_boundary(out, re)
+						end
+						if ok and (hit == nil or ls < hit.ls) then
 							hit = { ls = ls, le = le, rs = rs, re = re, p = p }
 						end
 					end
@@ -273,7 +294,7 @@ local function emit_framed_block(lines, marks, label, body_lines)
 	end
 	local inner = math.max(longest, 20)
 	local llabel = label ~= "" and (" " .. label .. " ") or ""
-	local top = "╭─" .. llabel .. string.rep("─", inner - #llabel - 1) .. "╮"
+	local top = "╭─" .. llabel .. string.rep("─", inner + 1 - #llabel) .. "╮"
 	local idx = #lines
 	lines[#lines + 1] = top
 	marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBorder" }
@@ -339,7 +360,7 @@ local function emit_code(lines, marks, block, opts)
 	inner = math.max(inner, 20)
 
 	if opts.code.border then
-		local top = "╭─" .. label .. string.rep("─", inner - #label - 1) .. "╮"
+		local top = "╭─" .. label .. string.rep("─", inner + 1 - #label) .. "╮"
 		local idx = #lines
 		lines[#lines + 1] = top
 		marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBorder" }

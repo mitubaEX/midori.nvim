@@ -206,6 +206,17 @@ check(hb_joined:find("markdown") ~= nil, "render: doc header includes filetype t
 local hb_skip = render.render({ { kind = "para", text = "body" } }, { title = "", ft = "markdown" })
 check(hb_skip.lines[1] == "body", "render: doc header skipped when title is empty")
 
+-- ---- regression: word-boundary underscore in headings/text ----
+local ub = render.render(parser.parse({ "# nvim_lua_config" }))
+local ub_joined = table.concat(ub.lines, "\n")
+check(ub_joined:find("nvim_lua_config") ~= nil, "render: intra-word '_' is NOT eaten as italic marker")
+
+-- ---- regression: code block top border width matches body / bottom ----
+local cw = render.render(parser.parse({ "```text", "sh setup.sh", "```" }))
+local top_w = vim.fn.strdisplaywidth(cw.lines[1])
+local bot_w = vim.fn.strdisplaywidth(cw.lines[#cw.lines])
+check(top_w == bot_w, ("render: code block top width == bottom width (%d == %d)"):format(top_w, bot_w))
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw
