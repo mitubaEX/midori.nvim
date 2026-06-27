@@ -334,6 +334,8 @@ end
 -- header) must fit within the viewport. Otherwise Neovim soft-wraps the line
 -- and the trailing '│' drops to a new visual line — boxes break visually.
 do
+	-- truncate mode: long body line ends with '… │'
+	require("midori.config").setup({ code = { line_numbers = true, wrap = "truncate" } })
 	local long_body = "this is a very very very very long line that overflows narrow windows"
 	local out = render.render(
 		parser.parse({
@@ -352,8 +354,7 @@ do
 			max_w = w
 		end
 	end
-	check(max_w <= 30, ("render: viewport=30 caps every line width (got %d)"):format(max_w))
-	-- the long body line must end with '… │' (truncation marker + right border)
+	check(max_w <= 30, ("render: viewport=30 caps every line width, truncate mode (got %d)"):format(max_w))
 	local has_ellipsis_line = false
 	for _, l in ipairs(out.lines) do
 		if l:sub(-#"… │") == "… │" then
@@ -362,6 +363,94 @@ do
 		end
 	end
 	check(has_ellipsis_line, "render: truncated code body ends with '… │'")
+	require("midori.config").setup({ code = { line_numbers = true } })
+end
+
+-- wrap mode (default): long body is split into multiple boxed buffer lines,
+-- each still fenced by '│ ... │' so the box stays intact.
+do
+	require("midori.config").setup({ code = { line_numbers = false, wrap = "wrap" } })
+	local long_body = "this is a very very very very long line that overflows narrow windows"
+	local out = render.render(
+		parser.parse({
+			"```text",
+			long_body,
+			"```",
+		}),
+		nil,
+		{ viewport = 30 }
+	)
+	local max_w = 0
+	for _, l in ipairs(out.lines) do
+		local w = vim.fn.strdisplaywidth(l)
+		if w > max_w then
+			max_w = w
+		end
+	end
+	check(max_w <= 30, ("render: wrap mode viewport=30 caps every line width (got %d)"):format(max_w))
+	-- count body chunks: every line that starts with "│ " and is NOT a label/border
+	local chunks = 0
+	for _, l in ipairs(out.lines) do
+		if vim.startswith(l, "│ ") and l:sub(-#" │") == " │" then
+			chunks = chunks + 1
+		end
+	end
+	check(chunks >= 2, ("render: wrap mode splits long body into >= 2 chunks (got %d)"):format(chunks))
+	-- no '…' marker should appear in wrap mode
+	local has_ellipsis = false
+	for _, l in ipairs(out.lines) do
+		if l:find("…") then
+			has_ellipsis = true
+		end
+	end
+	check(not has_ellipsis, "render: wrap mode does NOT add '…' marker")
+	-- every body chunk must end with " │" (right border preserved)
+	local all_right_border = true
+	for _, l in ipairs(out.lines) do
+		if vim.startswith(l, "│ ") and l:sub(-#" │") ~= " │" then
+			all_right_border = false
+			break
+		end
+	end
+	check(all_right_border, "render: wrap mode keeps right '│' on every continuation chunk")
+	require("midori.config").setup({ code = { line_numbers = true } })
+end
+
+-- wrap mode: line_numbers ON shows the number only on the first chunk,
+-- continuation chunks get a blank gutter of the same width
+do
+	require("midori.config").setup({ code = { line_numbers = true, wrap = "wrap" } })
+	local out = render.render(
+		parser.parse({ "```text", "this is a very very very long body line", "```" }),
+		nil,
+		{ viewport = 24 }
+	)
+	-- collect body chunks (lines that aren't the top/bottom border)
+	local body_chunks = {}
+	for _, l in ipairs(out.lines) do
+		if vim.startswith(l, "│ ") and l:sub(-#" │") == " │" then
+			body_chunks[#body_chunks + 1] = l
+		end
+	end
+	check(#body_chunks >= 2, "render: wrap+line_numbers produces multiple chunks")
+	-- first chunk starts with "│ 1   " (nr_width=1 + 3 spaces gutter)
+	check(
+		body_chunks[1] and body_chunks[1]:sub(1, #"│ 1   ") == "│ 1   ",
+		"render: wrap+line_numbers first chunk shows line number"
+	)
+	-- second chunk's gutter must be the same byte length but all spaces (no digit)
+	if body_chunks[2] then
+		local gutter = body_chunks[2]:sub(#"│ " + 1, #"│ 1   ")
+		check(gutter:match("^%s+$") ~= nil, "render: wrap+line_numbers continuation gutter is blank")
+	end
+	require("midori.config").setup({ code = { line_numbers = true } })
+end
+
+-- default for code.wrap should be "wrap" (Vim-like behavior preferred)
+do
+	require("midori.config").setup({})
+	check(require("midori.config").options.code.wrap == "wrap", "config: code.wrap default is 'wrap'")
+	require("midori.config").setup({ code = { line_numbers = true } })
 end
 
 -- viewport caps doc header / rule width too
