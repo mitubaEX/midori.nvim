@@ -36,6 +36,13 @@ M.defaults = {
 	},
 	-- width of the horizontal rule rendering
 	rule_width = 60,
+	browse = {
+		-- picker window style: "float" (default) | "vsplit" | "full"
+		window = "float",
+		-- float size (fraction of editor width/height)
+		width = 0.6,
+		height = 0.7,
+	},
 }
 
 M.options = vim.deepcopy(M.defaults)

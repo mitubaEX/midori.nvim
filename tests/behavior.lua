@@ -582,6 +582,61 @@ do
 	)
 end
 
+-- ---- browser / :MidoriBrowse ----
+-- File picker that lists markdown files under a directory (glow-style) and
+-- opens the selected one in the midori reader. v1: flat recursive list,
+-- excludes common heavy dirs (.git, node_modules, …), no incremental filter.
+do
+	require("midori").close()
+	local tmp = vim.fn.tempname()
+	vim.fn.mkdir(tmp .. "/nested", "p")
+	vim.fn.mkdir(tmp .. "/.git", "p")
+	vim.fn.mkdir(tmp .. "/node_modules", "p")
+	vim.fn.writefile({ "# Alpha", "body a" }, tmp .. "/a.md")
+	vim.fn.writefile({ "# Beta", "body b" }, tmp .. "/nested/b.md")
+	vim.fn.writefile({ "# Hidden" }, tmp .. "/.git/c.md")
+	vim.fn.writefile({ "# Ignored" }, tmp .. "/node_modules/d.md")
+	vim.fn.writefile({ "not md" }, tmp .. "/e.txt")
+
+	local browser = require("midori.browser")
+	local files = browser.list_files(tmp)
+	local has = {}
+	for _, f in ipairs(files) do
+		has[f] = true
+	end
+	check(has["a.md"], "browser: list_files returns top-level a.md")
+	check(has["nested/b.md"], "browser: list_files recurses into nested/b.md")
+	check(not has[".git/c.md"], "browser: list_files excludes .git/")
+	check(not has["node_modules/d.md"], "browser: list_files excludes node_modules/")
+	check(not has["e.txt"], "browser: list_files excludes non-markdown files")
+
+	check(type(require("midori").browse) == "function", "browser: midori.browse is a function")
+
+	-- :MidoriBrowse opens a picker buffer in a float and lists the files
+	vim.cmd("MidoriBrowse " .. tmp)
+	local bbuf = vim.api.nvim_get_current_buf()
+	check(vim.bo[bbuf].filetype == "midori-browse", "browser: picker buffer filetype=midori-browse")
+	local blines = vim.api.nvim_buf_get_lines(bbuf, 0, -1, false)
+	local found_a, row_a = false, nil
+	for i, l in ipairs(blines) do
+		if l == "a.md" then
+			found_a = true
+			row_a = i
+		end
+	end
+	check(found_a, "browser: picker shows a.md in the list")
+
+	-- _select(row) opens that file in the reader (proxy for <CR>)
+	if row_a then
+		browser._select(row_a)
+		local cur = vim.api.nvim_get_current_buf()
+		check(vim.bo[cur].filetype == "midori", "browser: _select(row) opens reader for that file")
+		local body = table.concat(vim.api.nvim_buf_get_lines(cur, 0, -1, false), "\n")
+		check(body:find("Alpha") ~= nil, "browser: reader shows content of selected file")
+	end
+	require("midori").close()
+end
+
 -- ---- summary ----
 if #failures > 0 then
 	io.stderr:write(("\n%d test(s) FAILED\n"):format(#failures))

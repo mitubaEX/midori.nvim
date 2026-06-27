@@ -23,3 +23,12 @@ end, { desc = "Open midori TOC sidebar" })
 vim.api.nvim_create_user_command("MidoriRefresh", function()
 	require("midori").refresh()
 end, { desc = "Re-render the midori reader" })
+
+vim.api.nvim_create_user_command("MidoriBrowse", function(o)
+	local dir = o.args ~= "" and o.args or nil
+	require("midori").browse({ dir = dir })
+end, {
+	nargs = "?",
+	complete = "dir",
+	desc = "Browse markdown files under [dir] (default: cwd)",
+})
