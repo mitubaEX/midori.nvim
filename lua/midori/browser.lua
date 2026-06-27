@@ -47,10 +47,38 @@ local function walk(root, rel, results)
 	end
 end
 
+local function git_list_files(dir)
+	if vim.fn.executable("git") ~= 1 then
+		return nil
+	end
+	local out = vim.fn.systemlist({
+		"git",
+		"-C",
+		dir,
+		"ls-files",
+		"--cached",
+		"--others",
+		"--exclude-standard",
+	})
+	if vim.v.shell_error ~= 0 then
+		return nil
+	end
+	return out
+end
+
 function M.list_files(dir)
 	dir = vim.fn.fnamemodify(dir or vim.fn.getcwd(), ":p"):gsub("/+$", "")
 	local results = {}
-	walk(dir, "", results)
+	local git_files = git_list_files(dir)
+	if git_files then
+		for _, f in ipairs(git_files) do
+			if is_markdown(f) then
+				results[#results + 1] = f
+			end
+		end
+	else
+		walk(dir, "", results)
+	end
 	table.sort(results)
 	return results
 end

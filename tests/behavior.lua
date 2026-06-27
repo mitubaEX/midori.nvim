@@ -637,6 +637,33 @@ do
 	require("midori").close()
 end
 
+-- gitignore-aware listing: files matching .gitignore (incl. global ignore /
+-- .git/info/exclude) must NOT appear in the picker even if no name-based
+-- EXCLUDE_DIRS entry covers them. Implemented via `git ls-files`.
+do
+	if vim.fn.executable("git") == 1 then
+		require("midori").close()
+		local tmp = vim.fn.tempname()
+		vim.fn.mkdir(tmp .. "/ignored", "p")
+		vim.fn.mkdir(tmp .. "/.worktrees/wt", "p")
+		vim.fn.writefile({ "# Top" }, tmp .. "/a.md")
+		vim.fn.writefile({ "# Hidden" }, tmp .. "/ignored/x.md")
+		vim.fn.writefile({ "# Worktree" }, tmp .. "/.worktrees/wt/y.md")
+		vim.fn.writefile({ "ignored/", ".worktrees/" }, tmp .. "/.gitignore")
+		vim.fn.system({ "git", "-C", tmp, "init", "-q" })
+		local browser = require("midori.browser")
+		-- bust the require cache so the new implementation is loaded fresh
+		local files = browser.list_files(tmp)
+		local has = {}
+		for _, f in ipairs(files) do
+			has[f] = true
+		end
+		check(has["a.md"], "browser: gitignore — non-ignored a.md included")
+		check(not has["ignored/x.md"], "browser: gitignore — ignored/ contents excluded")
+		check(not has[".worktrees/wt/y.md"], "browser: gitignore — .worktrees/ contents excluded")
+	end
+end
+
 -- ---- summary ----
 if #failures > 0 then
 	io.stderr:write(("\n%d test(s) FAILED\n"):format(#failures))
