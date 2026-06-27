@@ -55,6 +55,62 @@ local function fit(text, max_w)
 	return text:sub(1, kept_bytes) .. "…", kept_bytes
 end
 
+-- Split `text` into chunks whose DISPLAY width <= max_w. Each chunk is
+-- { text = "...", byte_start = 1-indexed byte offset in the original `text`,
+--   byte_len = #text }. Empty `text` yields one empty chunk so wrap callers
+-- still emit a single body line. Multibyte-safe via the same per-codepoint
+-- walk as fit().
+local function split_by_width(text, max_w)
+	if max_w <= 0 or text == "" then
+		return { { text = "", byte_start = 1, byte_len = 0 } }
+	end
+	local dw = vim.fn.strdisplaywidth
+	if dw(text) <= max_w then
+		return { { text = text, byte_start = 1, byte_len = #text } }
+	end
+	local chunks = {}
+	local chunk_start = 1
+	local cur_dw, cur_bytes = 0, 0
+	local i = 1
+	while i <= #text do
+		local b = text:byte(i)
+		local len
+		if b < 0x80 then
+			len = 1
+		elseif b < 0xC0 then
+			len = 1
+		elseif b < 0xE0 then
+			len = 2
+		elseif b < 0xF0 then
+			len = 3
+		else
+			len = 4
+		end
+		local char = text:sub(i, i + len - 1)
+		local cw = dw(char)
+		if cur_dw + cw > max_w then
+			chunks[#chunks + 1] = {
+				text = text:sub(chunk_start, chunk_start + cur_bytes - 1),
+				byte_start = chunk_start,
+				byte_len = cur_bytes,
+			}
+			chunk_start = i
+			cur_dw, cur_bytes = 0, 0
+		end
+		cur_dw = cur_dw + cw
+		cur_bytes = cur_bytes + len
+		i = i + len
+	end
+	if cur_bytes > 0 then
+		chunks[#chunks + 1] = {
+			text = text:sub(chunk_start, chunk_start + cur_bytes - 1),
+			byte_start = chunk_start,
+			byte_len = cur_bytes,
+		}
+	end
+	return chunks
+end
+
 local INLINE_PATTERNS = {
 	{ name = "code", left = "`", right = "`", hl = "MidoriInlineCode" },
 	{ name = "strong", left = "**", right = "**", hl = "MidoriBold" },
@@ -449,43 +505,60 @@ local function emit_code(lines, marks, block, opts)
 	end
 
 	local body_start_idx = #lines
-	-- Per-line byte length of the ORIGINAL body line that survived viewport
-	-- truncation. Syntax highlight col offsets are computed against the
-	-- original body, so marks beyond this prefix must be clipped/dropped.
-	local kept_bytes = {}
+	-- Per-original-body-line list of emitted chunks. Each chunk records its
+	-- emitted buffer-line index and its (byte_start, byte_len) slice of the
+	-- ORIGINAL body line, so syntax highlight col offsets can be mapped per
+	-- chunk (only marks whose [col_start, col_end) intersects the chunk byte
+	-- range are emitted, shifted to chunk-local coords).
+	local body_chunks = {}
+	local wrap_mode = (opts.code.wrap or "wrap") == "wrap"
 	for i, bl in ipairs(body) do
 		local prefix = ""
 		if opts.code.line_numbers then
 			prefix = string.format("%" .. nr_width .. "d   ", i)
 		end
+		local blank_prefix = opts.code.line_numbers and string.rep(" ", #prefix) or ""
 		local body_avail = inner - dw(prefix)
 		if body_avail < 0 then
 			body_avail = 0
 		end
-		local fitted_body, kept = fit(bl, body_avail)
-		kept_bytes[i] = kept
-		local content = prefix .. fitted_body
-		local pad = inner - dw(content)
-		if pad < 0 then
-			pad = 0
-		end
-		local idx = #lines
-		local line
-		if opts.code.border then
-			line = "│ " .. content .. string.rep(" ", pad) .. " │"
+
+		local chunks
+		if wrap_mode then
+			chunks = split_by_width(bl, body_avail)
 		else
-			line = content
+			local fitted_body, kept = fit(bl, body_avail)
+			chunks = { { text = fitted_body, byte_start = 1, byte_len = kept } }
 		end
-		lines[#lines + 1] = line
-		marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBlock" }
-		if opts.code.line_numbers and opts.code.border then
-			marks[#marks + 1] = {
-				line = idx,
-				col_start = 2,
-				col_end = 2 + nr_width,
-				hl_group = "MidoriCodeLineNr",
-			}
+
+		local line_chunks = {}
+		for ci, ch in ipairs(chunks) do
+			local cur_prefix = (ci == 1) and prefix or blank_prefix
+			local content = cur_prefix .. ch.text
+			local pad = inner - dw(content)
+			if pad < 0 then
+				pad = 0
+			end
+			local idx = #lines
+			local line
+			if opts.code.border then
+				line = "│ " .. content .. string.rep(" ", pad) .. " │"
+			else
+				line = content
+			end
+			lines[#lines + 1] = line
+			marks[#marks + 1] = { line = idx, line_hl = "MidoriCodeBlock" }
+			if ci == 1 and opts.code.line_numbers and opts.code.border then
+				marks[#marks + 1] = {
+					line = idx,
+					col_start = 2,
+					col_end = 2 + nr_width,
+					hl_group = "MidoriCodeLineNr",
+				}
+			end
+			line_chunks[#line_chunks + 1] = { buf_line = idx, byte_start = ch.byte_start, byte_len = ch.byte_len }
 		end
+		body_chunks[i] = line_chunks
 	end
 
 	if opts.code.syntax and lang ~= "" then
@@ -497,18 +570,22 @@ local function emit_code(lines, marks, block, opts)
 		local body_prefix_len = border_prefix + (opts.code.line_numbers and (nr_width + 3) or 0)
 		local syntax_marks = syntax.highlights(lang, body)
 		for _, m in ipairs(syntax_marks) do
-			local kept = kept_bytes[m.line + 1] or 0
-			if m.col_start < kept then
-				local ce = m.col_end
-				if ce > kept then
-					ce = kept
+			local chunks = body_chunks[m.line + 1] or {}
+			for _, ch in ipairs(chunks) do
+				-- mark byte range in original body line: [m.col_start, m.col_end)
+				-- chunk byte range:                     [ch.byte_start-1, ch.byte_start-1 + ch.byte_len)
+				local ch_lo = ch.byte_start - 1
+				local ch_hi = ch_lo + ch.byte_len
+				local lo = math.max(m.col_start, ch_lo)
+				local hi = math.min(m.col_end, ch_hi)
+				if lo < hi then
+					marks[#marks + 1] = {
+						line = ch.buf_line,
+						col_start = (lo - ch_lo) + body_prefix_len,
+						col_end = (hi - ch_lo) + body_prefix_len,
+						hl_group = m.hl_group,
+					}
 				end
-				marks[#marks + 1] = {
-					line = body_start_idx + m.line,
-					col_start = m.col_start + body_prefix_len,
-					col_end = ce + body_prefix_len,
-					hl_group = m.hl_group,
-				}
 			end
 		end
 	end

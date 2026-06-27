@@ -25,6 +25,10 @@ M.defaults = {
 		-- Set to true to bring back the "<n>   <code>" gutter.
 		line_numbers = false,
 		syntax = true,
+		-- How to handle body lines wider than the reader viewport:
+		--   "wrap"     — split into multiple boxed buffer lines (vim-like)
+		--   "truncate" — cut at viewport width and append "…"
+		wrap = "wrap",
 	},
 	mermaid = {
 		enabled = true,
