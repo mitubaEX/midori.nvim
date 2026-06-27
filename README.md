@@ -23,6 +23,7 @@ no rewriting of the source buffer.
 - Fenced code blocks with frame, language label and line numbers
 - Treesitter syntax highlighting inside code blocks
 - Mermaid graph rendering via [`mermaid-ascii`](https://github.com/AlexanderGrooff/mermaid-ascii)
+- File browser (`:MidoriBrowse`) — glow-style markdown picker over cwd
 - TOC sidebar (`:MidoriToc`) — heading list with jump-on-`<CR>`
 - Watch mode — re-renders the reader on `:w`
 - Reader window mode: `vsplit` (default) / `full` (new tabpage) / `float`
@@ -43,7 +44,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 {
   "mitubaEX/midori.nvim",
   ft = "markdown",
-  cmd = { "MidoriView", "MidoriToggle", "MidoriClose", "MidoriToc", "MidoriRefresh" },
+  cmd = { "MidoriView", "MidoriToggle", "MidoriClose", "MidoriToc", "MidoriRefresh", "MidoriBrowse" },
   opts = {},
 }
 ```
@@ -64,13 +65,14 @@ Or as a local clone:
 
 ## Usage
 
-| Command           | Description                                       |
-| ----------------- | ------------------------------------------------- |
-| `:MidoriView`     | Open the reader for the current buffer            |
-| `:MidoriClose`    | Close the reader                                  |
-| `:MidoriToggle`   | Toggle the reader                                 |
-| `:MidoriToc`      | Open a heading-list sidebar to the left           |
-| `:MidoriRefresh`  | Re-render the reader from the current source      |
+| Command              | Description                                       |
+| -------------------- | ------------------------------------------------- |
+| `:MidoriView`        | Open the reader for the current buffer            |
+| `:MidoriClose`       | Close the reader                                  |
+| `:MidoriToggle`      | Toggle the reader                                 |
+| `:MidoriToc`         | Open a heading-list sidebar to the left           |
+| `:MidoriRefresh`     | Re-render the reader from the current source      |
+| `:MidoriBrowse [dir]`| Pick a markdown file under `dir` (default: cwd)   |
 
 Inside the reader buffer:
 
@@ -81,6 +83,13 @@ Inside the TOC sidebar:
 
 - `q` — close the TOC (the reader stays open)
 - `<CR>` — jump the reader to the heading on the current line
+
+Inside the file browser (`:MidoriBrowse`):
+
+- `<CR>` — open the file under the cursor in the reader
+- `q` / `<Esc>` — close the browser
+- `r` — re-scan the directory
+- `/` `n` `N` — standard Vim search to filter visually
 
 ## Configuration
 
@@ -123,6 +132,14 @@ require("midori").setup({
   },
 
   rule_width = 60,
+
+  browse = {
+    -- picker window style: "float" (default) | "vsplit" | "full"
+    window = "float",
+    -- float size (fraction of editor width/height)
+    width  = 0.6,
+    height = 0.7,
+  },
 })
 ```
 

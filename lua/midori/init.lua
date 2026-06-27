@@ -31,4 +31,8 @@ function M.refresh()
 	view.refresh()
 end
 
+function M.browse(opts)
+	require("midori.browser").open(opts)
+end
+
 return M
