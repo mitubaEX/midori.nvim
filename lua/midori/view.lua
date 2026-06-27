@@ -63,13 +63,20 @@ local function apply_marks(buf, marks)
 	end
 end
 
-local function render_into(buf, source_buf)
+local function viewport_for(win)
+	if not (win and vim.api.nvim_win_is_valid(win)) then
+		return nil
+	end
+	return vim.api.nvim_win_get_width(win)
+end
+
+local function render_into(buf, source_buf, win)
 	local src_lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
 	local blocks = parser.parse(src_lines)
 	local name = vim.api.nvim_buf_get_name(source_buf) or ""
 	local title = name ~= "" and vim.fn.fnamemodify(name, ":t:r") or ""
 	local meta = { title = title, ft = vim.bo[source_buf].filetype or "" }
-	local out = render.render(blocks, meta)
+	local out = render.render(blocks, meta, { viewport = viewport_for(win) })
 	vim.bo[buf].modifiable = true
 	vim.api.nvim_buf_clear_namespace(buf, NS, 0, -1)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, out.lines)
@@ -77,22 +84,40 @@ local function render_into(buf, source_buf)
 	vim.bo[buf].modifiable = false
 	state.links = out.links or {}
 	state.headings = out.headings or {}
+	state.last_viewport = viewport_for(win)
 end
 
 local AUGROUP = "midori_watch"
 
 local function setup_watch(reader_buf, source_buf)
+	local group = vim.api.nvim_create_augroup(AUGROUP, { clear = true })
+	-- Re-render on window resize so a narrow vsplit's truncated frames re-fit
+	-- when the user widens the split. Independent of the watch toggle below.
+	vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+		group = group,
+		callback = function()
+			if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
+				return
+			end
+			local vp = viewport_for(state.win)
+			if vp == state.last_viewport then
+				return
+			end
+			if reader_buf and vim.api.nvim_buf_is_valid(reader_buf) and vim.api.nvim_buf_is_valid(source_buf) then
+				render_into(reader_buf, source_buf, state.win)
+			end
+		end,
+	})
 	local enabled = (config.options.watch or {}).enabled
 	if enabled == false then
 		return
 	end
-	local group = vim.api.nvim_create_augroup(AUGROUP, { clear = true })
 	vim.api.nvim_create_autocmd("BufWritePost", {
 		group = group,
 		buffer = source_buf,
 		callback = function()
 			if reader_buf and vim.api.nvim_buf_is_valid(reader_buf) then
-				render_into(reader_buf, source_buf)
+				render_into(reader_buf, source_buf, state.win)
 			end
 		end,
 	})
@@ -111,7 +136,8 @@ function M.open(source_buf)
 	end
 
 	local buf, win = open_window(config.options)
-	render_into(buf, source_buf)
+	state.win = win
+	render_into(buf, source_buf, win)
 
 	vim.bo[buf].filetype = "midori"
 	vim.bo[buf].buftype = "nofile"
@@ -145,7 +171,6 @@ function M.open(source_buf)
 	end, { buffer = buf, nowait = true, silent = true, desc = "midori: open URL under cursor" })
 
 	state.buf = buf
-	state.win = win
 	state.source = source_buf
 	setup_watch(buf, source_buf)
 end
@@ -223,7 +248,7 @@ function M.refresh()
 	if not state.source or not vim.api.nvim_buf_is_valid(state.source) then
 		return
 	end
-	render_into(state.buf, state.source)
+	render_into(state.buf, state.source, state.win)
 end
 
 function M.close()

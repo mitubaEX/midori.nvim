@@ -15,6 +15,46 @@ local mermaid = require("midori.mermaid")
 
 local M = {}
 
+-- Truncate `text` so its DISPLAY width <= max_w, appending "…" (width 1) when
+-- truncation actually happened. Returns (truncated_text, original_bytes_kept)
+-- so callers (syntax highlight) can clip byte-offset ranges to the kept
+-- prefix of the original line.
+local function fit(text, max_w)
+	local dw = vim.fn.strdisplaywidth
+	if max_w <= 0 then
+		return "", 0
+	end
+	if dw(text) <= max_w then
+		return text, #text
+	end
+	local kept_dw, kept_bytes = 0, 0
+	local i = 1
+	while i <= #text do
+		local b = text:byte(i)
+		local len
+		if b < 0x80 then
+			len = 1
+		elseif b < 0xC0 then
+			len = 1 -- defensive: mid-utf8 byte, treat as 1
+		elseif b < 0xE0 then
+			len = 2
+		elseif b < 0xF0 then
+			len = 3
+		else
+			len = 4
+		end
+		local char = text:sub(i, i + len - 1)
+		local cw = dw(char)
+		if kept_dw + cw > max_w - 1 then
+			break
+		end
+		kept_dw = kept_dw + cw
+		kept_bytes = kept_bytes + len
+		i = i + len
+	end
+	return text:sub(1, kept_bytes) .. "…", kept_bytes
+end
+
 local INLINE_PATTERNS = {
 	{ name = "code", left = "`", right = "`", hl = "MidoriInlineCode" },
 	{ name = "strong", left = "**", right = "**", hl = "MidoriBold" },
@@ -219,6 +259,9 @@ local function emit_heading(lines, marks, links, block, opts)
 
 	-- H1 / H2 get an underline rule. H3..H6 are color-only.
 	local rule_width = math.max(#prefix + #visible, opts.rule_width or 60)
+	if opts._viewport then
+		rule_width = math.min(rule_width, opts._viewport)
+	end
 	local rule_chars = opts.heading.rules or { "━", "─" }
 	local rule_char = rule_chars[block.level]
 	if rule_char and rule_char ~= "" then
@@ -280,12 +323,15 @@ end
 
 local function emit_rule(lines, marks, opts)
 	local w = opts.rule_width or 60
+	if opts._viewport then
+		w = math.min(w, opts._viewport)
+	end
 	local idx = #lines
 	lines[#lines + 1] = string.rep("─", w)
 	marks[#marks + 1] = { line = idx, line_hl = "MidoriRule" }
 end
 
-local function emit_framed_block(lines, marks, label, body_lines)
+local function emit_framed_block(lines, marks, label, body_lines, opts)
 	-- Width math is in DISPLAY columns, not bytes — mermaid output uses
 	-- box-drawing chars (3 bytes / 1 col in UTF-8) so #s overstates width
 	-- and the right border drifts left of ╮/╯.
@@ -296,6 +342,10 @@ local function emit_framed_block(lines, marks, label, body_lines)
 		if w > longest then
 			longest = w
 		end
+	end
+	local max_inner = opts and opts._viewport and (opts._viewport - 4) or nil
+	if max_inner and longest > max_inner then
+		longest = math.max(4, max_inner)
 	end
 	local inner = math.max(longest, 20)
 	local llabel = label ~= "" and (" " .. label .. " ") or ""
@@ -312,12 +362,13 @@ local function emit_framed_block(lines, marks, label, body_lines)
 		}
 	end
 	for _, bl in ipairs(body_lines) do
-		local pad = inner - dw(bl)
+		local fitted = fit(bl, inner)
+		local pad = inner - dw(fitted)
 		if pad < 0 then
 			pad = 0
 		end
 		local li = #lines
-		lines[#lines + 1] = "│ " .. bl .. string.rep(" ", pad) .. " │"
+		lines[#lines + 1] = "│ " .. fitted .. string.rep(" ", pad) .. " │"
 		marks[#marks + 1] = { line = li, line_hl = "MidoriCodeBlock" }
 	end
 	local bi = #lines
@@ -332,14 +383,14 @@ local function emit_mermaid(lines, marks, block, opts)
 	end
 	local result = mermaid.render(block.lines)
 	if result.ok then
-		emit_framed_block(lines, marks, "mermaid", result.lines)
+		emit_framed_block(lines, marks, "mermaid", result.lines, opts)
 		return true
 	end
 	local body = { "[mermaid: not installed]", "" }
 	for _, l in ipairs(block.lines) do
 		body[#body + 1] = l
 	end
-	emit_framed_block(lines, marks, "mermaid", body)
+	emit_framed_block(lines, marks, "mermaid", body, opts)
 	return true
 end
 
@@ -368,6 +419,18 @@ local function emit_code(lines, marks, block, opts)
 	local label = lang ~= "" and (" " .. lang .. " ") or ""
 	local inner = math.max(longest + (nr_width > 0 and (nr_width + 3) or 0), #label + 4)
 	inner = math.max(inner, 20)
+	-- Viewport cap: the rendered frame ("│ <inner> │" = inner + 4 cols) must
+	-- fit the reader window, otherwise the right '│' soft-wraps and the box
+	-- visually breaks. Truncation of body lines happens below.
+	if opts._viewport then
+		local max_inner = opts._viewport - 4
+		if max_inner < #label + 4 then
+			max_inner = math.max(4, #label + 4)
+		end
+		if inner > max_inner then
+			inner = max_inner
+		end
+	end
 
 	if opts.code.border then
 		local top = "╭─" .. label .. string.rep("─", inner + 1 - #label) .. "╮"
@@ -386,12 +449,22 @@ local function emit_code(lines, marks, block, opts)
 	end
 
 	local body_start_idx = #lines
+	-- Per-line byte length of the ORIGINAL body line that survived viewport
+	-- truncation. Syntax highlight col offsets are computed against the
+	-- original body, so marks beyond this prefix must be clipped/dropped.
+	local kept_bytes = {}
 	for i, bl in ipairs(body) do
 		local prefix = ""
 		if opts.code.line_numbers then
 			prefix = string.format("%" .. nr_width .. "d   ", i)
 		end
-		local content = prefix .. bl
+		local body_avail = inner - dw(prefix)
+		if body_avail < 0 then
+			body_avail = 0
+		end
+		local fitted_body, kept = fit(bl, body_avail)
+		kept_bytes[i] = kept
+		local content = prefix .. fitted_body
 		local pad = inner - dw(content)
 		if pad < 0 then
 			pad = 0
@@ -424,12 +497,19 @@ local function emit_code(lines, marks, block, opts)
 		local body_prefix_len = border_prefix + (opts.code.line_numbers and (nr_width + 3) or 0)
 		local syntax_marks = syntax.highlights(lang, body)
 		for _, m in ipairs(syntax_marks) do
-			marks[#marks + 1] = {
-				line = body_start_idx + m.line,
-				col_start = m.col_start + body_prefix_len,
-				col_end = m.col_end + body_prefix_len,
-				hl_group = m.hl_group,
-			}
+			local kept = kept_bytes[m.line + 1] or 0
+			if m.col_start < kept then
+				local ce = m.col_end
+				if ce > kept then
+					ce = kept
+				end
+				marks[#marks + 1] = {
+					line = body_start_idx + m.line,
+					col_start = m.col_start + body_prefix_len,
+					col_end = ce + body_prefix_len,
+					hl_group = m.hl_group,
+				}
+			end
 		end
 	end
 
@@ -459,7 +539,7 @@ local function pad_cell(text, width, align)
 	return text .. string.rep(" ", space)
 end
 
-local function emit_table(lines, marks, block)
+local function emit_table(lines, marks, block, opts)
 	local headers = block.headers or {}
 	local aligns = block.aligns or {}
 	local rows = block.rows or {}
@@ -486,6 +566,32 @@ local function emit_table(lines, marks, block)
 		end
 	end
 
+	-- Viewport fit: total line width = 1 (left │) + Σ(widths[c] + 2 + 1).
+	-- If it exceeds the viewport, shrink the widest column 1-col-at-a-time
+	-- until it fits or every column is at the minimum (1). Truncation of
+	-- overflowing cells happens at row_line time via fit().
+	if opts and opts._viewport then
+		local function total()
+			local t = 1
+			for c = 1, ncols do
+				t = t + widths[c] + 3
+			end
+			return t
+		end
+		while total() > opts._viewport do
+			local widest, idx = 0, 1
+			for c = 1, ncols do
+				if widths[c] > widest then
+					widest, idx = widths[c], c
+				end
+			end
+			if widest <= 1 then
+				break
+			end
+			widths[idx] = widths[idx] - 1
+		end
+	end
+
 	local function rule(left, mid, right, fill)
 		local parts = { left }
 		for c = 1, ncols do
@@ -499,7 +605,8 @@ local function emit_table(lines, marks, block)
 		local parts = { "│" }
 		for c = 1, ncols do
 			local cell = cells[c] or ""
-			parts[#parts + 1] = " " .. pad_cell(cell, widths[c], aligns[c] or "left") .. " "
+			local fitted = fit(cell, widths[c])
+			parts[#parts + 1] = " " .. pad_cell(fitted, widths[c], aligns[c] or "left") .. " "
 			parts[#parts + 1] = "│"
 		end
 		return table.concat(parts)
@@ -581,6 +688,9 @@ local function emit_doc_header(lines, marks, meta, opts)
 	end
 	local ft = (meta and meta.ft) or ""
 	local width = math.max(opts.rule_width or 60, #title + #ft + 6)
+	if opts._viewport then
+		width = math.min(width, opts._viewport)
+	end
 	local idx = #lines
 	local right = ft ~= "" and ("[" .. ft .. "]") or ""
 	local pad = width - #title - #right
@@ -611,8 +721,14 @@ local function emit_doc_header(lines, marks, meta, opts)
 	marks[#marks + 1] = { line = ridx, line_hl = "MidoriH1Rule" }
 end
 
-function M.render(blocks, meta)
-	local opts = config.options
+function M.render(blocks, meta, render_opts)
+	-- Shadow `config.options` with an _viewport overlay so we don't mutate
+	-- shared state. Nested tables (opts.code, opts.heading) still resolve
+	-- through __index, so emit_*'s `opts.code.border` etc. keep working.
+	local base = config.options
+	local opts = setmetatable({
+		_viewport = render_opts and render_opts.viewport or nil,
+	}, { __index = base })
 	local lines, marks, links, headings = {}, {}, {}, {}
 	emit_doc_header(lines, marks, meta, opts)
 	for _, block in ipairs(blocks) do
@@ -636,7 +752,7 @@ function M.render(blocks, meta)
 				emit_code(lines, marks, block, opts)
 			end
 		elseif block.kind == "table" then
-			emit_table(lines, marks, block)
+			emit_table(lines, marks, block, opts)
 		elseif block.kind == "blank" then
 			lines[#lines + 1] = ""
 		end
