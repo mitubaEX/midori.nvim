@@ -329,6 +329,94 @@ do
 	)
 end
 
+-- ---- regression: viewport fit (narrow vsplit) ----
+-- When the reader window is narrow, the rendered frame (code/table/rule/doc
+-- header) must fit within the viewport. Otherwise Neovim soft-wraps the line
+-- and the trailing '│' drops to a new visual line — boxes break visually.
+do
+	local long_body = "this is a very very very very long line that overflows narrow windows"
+	local out = render.render(
+		parser.parse({
+			"```text",
+			long_body,
+			"short",
+			"```",
+		}),
+		nil,
+		{ viewport = 30 }
+	)
+	local max_w = 0
+	for _, l in ipairs(out.lines) do
+		local w = vim.fn.strdisplaywidth(l)
+		if w > max_w then
+			max_w = w
+		end
+	end
+	check(max_w <= 30, ("render: viewport=30 caps every line width (got %d)"):format(max_w))
+	-- the long body line must end with '… │' (truncation marker + right border)
+	local has_ellipsis_line = false
+	for _, l in ipairs(out.lines) do
+		if l:sub(-#"… │") == "… │" then
+			has_ellipsis_line = true
+			break
+		end
+	end
+	check(has_ellipsis_line, "render: truncated code body ends with '… │'")
+end
+
+-- viewport caps doc header / rule width too
+do
+	local out = render.render(
+		parser.parse({ "para", "", "---" }),
+		{ title = "longtitle", ft = "markdown" },
+		{ viewport = 20 }
+	)
+	local max_w = 0
+	for _, l in ipairs(out.lines) do
+		local w = vim.fn.strdisplaywidth(l)
+		if w > max_w then
+			max_w = w
+		end
+	end
+	check(max_w <= 20, ("render: viewport=20 caps doc header / rule width (got %d)"):format(max_w))
+end
+
+-- viewport caps table width
+do
+	local out = render.render(
+		parser.parse({
+			"| Group | Default |",
+			"|-------|---------|",
+			"| Very long heading name | Very long default value |",
+		}),
+		nil,
+		{ viewport = 28 }
+	)
+	local max_w = 0
+	for _, l in ipairs(out.lines) do
+		local w = vim.fn.strdisplaywidth(l)
+		if w > max_w then
+			max_w = w
+		end
+	end
+	check(max_w <= 28, ("render: viewport=28 caps table width (got %d)"):format(max_w))
+end
+
+-- backward compat: no viewport => same output as before
+do
+	local a = render.render(parser.parse({ "```text", "hello", "```" }))
+	local b = render.render(parser.parse({ "```text", "hello", "```" }), nil, {})
+	check(#a.lines == #b.lines, "render: omitting render_opts is equivalent to {}")
+	local same = true
+	for i, l in ipairs(a.lines) do
+		if l ~= b.lines[i] then
+			same = false
+			break
+		end
+	end
+	check(same, "render: omitting render_opts produces identical lines")
+end
+
 -- ---- syntax (treesitter) ----
 local syntax = require("midori.syntax")
 -- module loads even without parsers; missing parser → returns empty list, no throw
