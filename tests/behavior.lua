@@ -675,6 +675,48 @@ else
 	check(mjoined:find("graph TD") ~= nil, "mermaid: original source preserved in placeholder")
 end
 
+-- ---- mermaid: wide-char (CJK) column realignment ----
+-- mermaid-ascii lays out columns by counting RUNES not display cols, so each
+-- 2-col wide char (CJK) on a row leaks one extra space into the next gap,
+-- shifting that row right of the corresponding ascii rows. The realign helper
+-- must normalize widths so each wide-char row matches the width of its
+-- structurally-equivalent ascii row. The input below is the verbatim output
+-- of `mermaid-ascii` for `sequenceDiagram; participant A as ユーザ;
+-- participant B as video; A->>B: 押下`.
+do
+	local broken = {
+		"┌────────┐     ┌───────┐", -- L01 top borders   (ascii, width 24)
+		"│ ユーザ │        │ video │", -- L02 label         (3 wide -> +3)
+		"└────┬───┘     └───┬───┘", -- L03 bottom borders (ascii, width 24)
+		"     │             │", -- L04 lifeline       (ascii, width 20)
+		"     │ 押下          │", -- L05 message text   (2 wide -> +2)
+		"     ├────────────►│", -- L06 arrow          (ascii, width 20)
+	}
+	local label_ref = vim.fn.strdisplaywidth(broken[1])
+	local life_ref = vim.fn.strdisplaywidth(broken[4])
+	check(label_ref == 24 and life_ref == 20, "mermaid: fixture display widths match expectation (sanity)")
+	check(vim.fn.strdisplaywidth(broken[2]) ~= label_ref, "mermaid: pre-realign label row is misaligned (sanity)")
+	check(vim.fn.strdisplaywidth(broken[5]) ~= life_ref, "mermaid: pre-realign message row is misaligned (sanity)")
+	local fixed = mermaid._realign_widths(broken)
+	check(#fixed == #broken, "mermaid: realign preserves line count")
+	check(vim.fn.strdisplaywidth(fixed[1]) == label_ref, "mermaid: realign keeps top border width unchanged")
+	check(
+		vim.fn.strdisplaywidth(fixed[2]) == label_ref,
+		"mermaid: realign normalizes CJK label row to top border width"
+	)
+	check(vim.fn.strdisplaywidth(fixed[3]) == label_ref, "mermaid: realign keeps bottom border width unchanged")
+	check(vim.fn.strdisplaywidth(fixed[4]) == life_ref, "mermaid: realign keeps ascii lifeline row width unchanged")
+	check(vim.fn.strdisplaywidth(fixed[5]) == life_ref, "mermaid: realign normalizes CJK message row to lifeline width")
+	check(vim.fn.strdisplaywidth(fixed[6]) == life_ref, "mermaid: realign keeps arrow row width unchanged")
+	-- realign must not destroy box-internal padding — every `│` of every box
+	-- on the label row must survive (no border eaten by space removal).
+	local bars = 0
+	for _ in fixed[2]:gmatch("│") do
+		bars = bars + 1
+	end
+	check(bars == 4, "mermaid: realign preserves all box borders (no `│` removed)")
+end
+
 -- ---- view / :MidoriView command ----
 vim.cmd("runtime plugin/midori.lua")
 vim.api.nvim_buf_set_lines(0, 0, -1, false, sample)

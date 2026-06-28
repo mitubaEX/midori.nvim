@@ -36,6 +36,68 @@ function M.is_available()
 	return vim.fn.executable(bin()) == 1
 end
 
+-- mermaid-ascii lays out columns by counting RUNES, not display columns. Each
+-- 2-col wide char (e.g. CJK) on a label line therefore leaks one extra space
+-- into the buffer to "catch up" to the next anchor — shifting that line right
+-- of the borders above/below it. We compensate by removing one space from the
+-- next ≥2-space run for every leaked column, preserving 1-space box padding.
+local function realign_line(line)
+	if not (vim and vim.fn and vim.fn.strdisplaywidth) then
+		return line
+	end
+	local dw = vim.fn.strdisplaywidth
+	local out = {}
+	local owed = 0
+	local i = 1
+	local n = #line
+	while i <= n do
+		local b = line:byte(i)
+		local clen
+		if b < 0x80 then
+			clen = 1
+		elseif b < 0xc0 then
+			clen = 1
+		elseif b < 0xe0 then
+			clen = 2
+		elseif b < 0xf0 then
+			clen = 3
+		else
+			clen = 4
+		end
+		if b == 0x20 then
+			local j = i
+			while j <= n and line:byte(j) == 0x20 do
+				j = j + 1
+			end
+			local run = j - i
+			if owed > 0 and run >= 2 then
+				local rm = math.min(run - 1, owed)
+				run = run - rm
+				owed = owed - rm
+			end
+			out[#out + 1] = string.rep(" ", run)
+			i = j
+		else
+			local ch = line:sub(i, i + clen - 1)
+			local cw = dw(ch)
+			if cw > 1 then
+				owed = owed + (cw - 1)
+			end
+			out[#out + 1] = ch
+			i = i + clen
+		end
+	end
+	return table.concat(out)
+end
+
+function M._realign_widths(lines)
+	local out = {}
+	for k, l in ipairs(lines) do
+		out[k] = realign_line(l)
+	end
+	return out
+end
+
 -- Synchronously render `lines` (a list of strings, the mermaid source) into
 -- a list of ASCII lines via mermaid-ascii. Returns:
 --   { ok = true,  lines = { ... } }
@@ -67,7 +129,7 @@ function M.render(lines)
 	if #rlines > 0 and rlines[#rlines] == "" then
 		rlines[#rlines] = nil
 	end
-	local r = { ok = true, lines = rlines }
+	local r = { ok = true, lines = M._realign_widths(rlines) }
 	cache[src] = r
 	return r
 end
